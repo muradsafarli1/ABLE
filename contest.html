@@ -1,14 +1,11 @@
 <!doctype html>
 <html>
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ABLE — Contest</title>
 <link rel="stylesheet" href="/style.css">
 <script src="/app.js"></script>
-<script>
-window.MathJax={tex:{inlineMath:[['\\(','\\)'],['$','$']],displayMath:[['\\[','\\]'],['$$','$$']]},svg:{fontCache:'global'}};
-</script>
+<script>window.MathJax={tex:{inlineMath:[['\\(','\\)'],['$','$']],displayMath:[['\\[','\\]'],['$$','$$']]},svg:{fontCache:'global'}};</script>
 <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
 </head>
 <body>
@@ -21,7 +18,7 @@ window.MathJax={tex:{inlineMath:[['\\(','\\)'],['$','$']],displayMath:[['\\[','\
     const c=(d.contests||[]).find(x=>x.id===id);
     if(!c){location.href='/contests.html';return;}
     const problems=c.problems||[];
-    shell('Contests',c.title,`<main class="contest-page"><section class="contest-hero"><div class="wrap contest-wrap"><div class="eyebrow">${escapeHtml(c.type||'Contest')} · ${escapeHtml(c.year||'')}</div><h1>${escapeHtml(c.title)}</h1><p class="lead">${escapeHtml(c.description||'')}</p></div></section><section class="section contest-section"><div class="wrap contest-wrap"><article class="contest-paper" id="contest-content">${problems.length?problems.map((p,i)=>{const code=p.code||('A'+(i+1));return `<section class="contest-problem"><div class="contest-problem-heading"><span>${escapeHtml(code)}</span></div><div class="question-text">${escapeHtml(p.statement||'Problem statement has not been added yet.')}</div></section>`}).join(''):'<p class="lead">Problems will be added soon.</p>'}</article><div class="contest-actions"><a class="btn" href="/contests.html">← Back to Contests</a></div></div></section></main>`);
+    shell('Contests',c.title,`<main class="contest-page"><section class="contest-hero"><div class="wrap contest-wrap"><div class="eyebrow">${escapeHtml(c.type||'Contest')} ${c.year?' · '+escapeHtml(c.year):''}</div><h1>${escapeHtml(c.title)}</h1><p class="lead">${escapeHtml(c.description||'')}</p></div></section><section class="section"><div class="wrap contest-wrap"><article class="contest-paper" id="contest-content">${problems.length?problems.map((p,i)=>`<section class="contest-problem"><div class="contest-problem-heading"><span>${escapeHtml(p.code||('A'+(i+1)))}</span></div><div class="question-text">${escapeHtml(p.statement||'Problem statement has not been added yet.')}</div></section>`).join(''):'<p class="lead">Problems will be added soon.</p>'}${c.submissionUrl?`<div class="drive-submit"><div class="eyebrow">Solutions</div><p class="lead">Write your solutions on paper, scan them, and submit them using the link below.</p><a class="btn primary" href="${escapeHtml(c.submissionUrl)}" target="_blank" rel="noopener">Submit solutions →</a></div>`:''}<div class="contest-actions"><a class="btn" href="/contests.html">← Back to Contests</a></div></article></div></section></main>`);
     const renderMath=()=>{if(window.MathJax?.typesetPromise){MathJax.typesetPromise([document.getElementById('contest-content')]).catch(console.error)}else setTimeout(renderMath,300)};
     renderMath();
   }catch(err){console.error('Contest loading error:',err);document.body.innerHTML=`<div class="error-page"><h1>Unable to load contest</h1><p>${escapeHtml(err.message)}</p><a href="/contests.html">← Back to Contests</a></div>`}
