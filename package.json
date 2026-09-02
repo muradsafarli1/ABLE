@@ -1,8 +1,9 @@
 {
   "name":"able-math-platform",
-  "version":"2.0.0",
+  "version":"2.1.0",
   "private":true,
-  "description":"ABLE Olympiad Mathematics platform with real local accounts and admin panel",
+  "description":"ABLE Olympiad Mathematics platform",
   "scripts":{"start":"node server.js"},
-  "engines":{"node":">=18"}
+  "engines":{"node":">=18"},
+  "dependencies":{"pg":"^8.16.3"}
 }
