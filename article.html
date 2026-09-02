@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ABLE — Article</title>
+<link rel="stylesheet" href="/style.css">
+<script src="/app.js"></script>
+<script>window.MathJax={tex:{inlineMath:[['\\(','\\)'],['$','$']],displayMath:[['\\[','\\]'],['$$','$$']]},svg:{fontCache:'global'}};</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+</head>
+<body>
+<script>
+(async()=>{
+  const id=new URLSearchParams(location.search).get('id');
+  if(!id){location.href='/articles.html';return;}
+  try{
+    const d=await api('/api/content');
+    const a=(d.articles||[]).find(x=>x.id===id);
+    if(!a){location.href='/articles.html';return;}
+    shell('Articles',a.title,`<main class="article-page"><section class="pagehero"><div class="wrap article-wrap"><div class="eyebrow">${escapeHtml(a.category||'Article')}</div><h1>${escapeHtml(a.title)}</h1><p class="lead">${escapeHtml(a.excerpt||'')}</p></div></section><section class="section"><div class="wrap article-wrap"><article class="article-paper" id="article-content">${escapeHtml(a.body||'')}</article><div class="article-actions"><a class="btn" href="/articles.html">← Back to Articles</a></div></div></section></main>`);
+    if(window.MathJax?.typesetPromise) MathJax.typesetPromise([document.getElementById('article-content')]).catch(console.error); else setTimeout(()=>location.reload(),500);
+  }catch(e){console.error(e);document.body.innerHTML=`<div class="error-page"><h1>Unable to load article</h1><p>${escapeHtml(e.message)}</p><a href="/articles.html">← Back to Articles</a></div>`}
+})();
+</script>
+</body>
+</html>
