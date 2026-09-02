@@ -1,1 +1,84 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ABLE — Contest</title><link rel="stylesheet" href="/style.css"><script defer src="/app.js"></script></head><body><script>(async()=>{const id=new URLSearchParams(location.search).get('id');if(!id){location.href='/contests.html';return;}const d=await api('/api/content'),c=d.contests.find(x=>x.id===id);if(!c){location.href='/contests.html';return;}shell('Contests',c.title,`<section class="pagehero"><div class="wrap"><div class="eyebrow">${escapeHtml(c.type||'Contest')} · ${escapeHtml(c.year||'')}</div><h1>${escapeHtml(c.title)}</h1><p class="lead">${escapeHtml(c.description||'')}</p></div></section><section class="section"><div class="wrap"><div class="contest-paper">${(c.problems||[]).map((p,i)=>`<article class="contest-problem"><div class="tag">Problem ${i+1}</div><div class="question-text">${escapeHtml(p.statement||'')}</div><div class="tag" style="margin-top:24px">Solution:</div><div class="question-text">${escapeHtml(p.solution||'')}</div></article>`).join('')||'<p class="lead">Problems will be added soon.</p>'}</div></div></section>`);})();</script></body></html>
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ABLE — Contest</title>
+<link rel="stylesheet" href="/style.css">
+<!-- app.js MUST load before the inline script because this page uses api() and shell(). -->
+<script src="/app.js"></script>
+<script>
+window.MathJax={
+  tex:{
+    inlineMath:[['\\(','\\)'],['$','$']],
+    displayMath:[['\\[','\\]'],['$$','$$']]
+  },
+  svg:{fontCache:'global'}
+};
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+</head>
+<body>
+<script>
+(async()=>{
+  const id=new URLSearchParams(location.search).get('id');
+  if(!id){location.href='/contests.html';return;}
+
+  try {
+    const d=await api('/api/content');
+    const c=(d.contests||[]).find(x=>x.id===id);
+    if(!c){location.href='/contests.html';return;}
+
+    const problems=c.problems||[];
+
+    shell('Contests',c.title,`
+      <section class="pagehero">
+        <div class="wrap">
+          <div class="eyebrow">${escapeHtml(c.type||'Contest')} · ${escapeHtml(c.year||'')}</div>
+          <h1>${escapeHtml(c.title)}</h1>
+          <p class="lead">${escapeHtml(c.description||'')}</p>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="wrap">
+          <main class="contest-paper" id="contest-content">
+            ${problems.length?problems.map((p,i)=>`
+              <article class="contest-problem">
+                <div class="tag">Problem ${i+1}</div>
+                <div class="question-text" style="white-space:pre-wrap;line-height:1.9;font-size:18px;">
+${escapeHtml(p.statement||'')}
+                </div>
+                ${p.solution?`
+                  <div class="tag" style="margin-top:28px">Solution:</div>
+                  <div class="question-text" style="white-space:pre-wrap;line-height:1.9;font-size:18px;">
+${escapeHtml(p.solution)}
+                  </div>
+                `:''}
+              </article>
+            `).join(''):'<p class="lead">Problems will be added soon.</p>'}
+          </main>
+
+          <div style="margin-top:30px">
+            <a class="btn" href="/contests.html">← Back to Contests</a>
+          </div>
+        </div>
+      </section>
+    `);
+
+    const renderMath=()=>{
+      if(window.MathJax&&MathJax.typesetPromise){
+        MathJax.typesetPromise([document.getElementById('contest-content')]).catch(console.error);
+      }else{
+        setTimeout(renderMath,300);
+      }
+    };
+    renderMath();
+  } catch(err) {
+    console.error('Contest loading error:',err);
+    document.body.innerHTML=`<div style="padding:80px;text-align:center;color:white;font-family:sans-serif"><h1>Unable to load contest</h1><p>${escapeHtml(err.message)}</p><a href="/contests.html" style="color:#60a5fa">← Back to Contests</a></div>`;
+  }
+})();
+</script>
+</body>
+</html>
