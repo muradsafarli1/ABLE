@@ -15,6 +15,7 @@ const API_BASE = 'https://able-n6du.onrender.com';
     .language-switch button.active{background:#eef0ff;color:#101218}
     .detail-content{font-size:19px;line-height:1.9;color:var(--text);white-space:pre-wrap}
     .detail-content mjx-container{white-space:normal}
+    .print-answer-space{display:none}
     .detail-image{display:block;max-width:100%;max-height:520px;margin:28px auto;border-radius:12px;object-fit:contain}
     .solution-reveal{margin-top:38px;padding-top:0}
     .solution-content{display:none;margin-top:30px;padding-top:28px;border-top:1px solid rgba(255,255,255,.12)}
@@ -86,14 +87,7 @@ async function api(path, opts = {}) {
   if (!r.ok) throw new Error(d.error || `Request failed (${r.status})`);
   return d;
 }
-
-function toggleTheme(){
-  const next=document.documentElement.dataset.theme==='light'?'dark':'light';
-  document.documentElement.dataset.theme=next;localStorage.setItem('able_theme',next);
-  const b=document.getElementById('theme-toggle');
-  if(b){b.textContent=next==='light'?'☾':'☀';b.title=next==='light'?'Switch to dark mode':'Switch to light mode';}
-}
-
+function toggleTheme(){const next=document.documentElement.dataset.theme==='light'?'dark':'light';document.documentElement.dataset.theme=next;localStorage.setItem('able_theme',next);const b=document.getElementById('theme-toggle');if(b){b.textContent=next==='light'?'☾':'☀';b.title=next==='light'?'Switch to dark mode':'Switch to light mode'}}
 function toast(msg){let t=document.getElementById('toast');if(!t){t=document.createElement('div');t.id='toast';t.className='toast';document.body.appendChild(t)}t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600)}
 async function me(){try{return(await api('/api/me')).user}catch{return null}}
 async function logout(){try{await api('/api/logout',{method:'POST'})}finally{location.href='/'}}
@@ -104,13 +98,9 @@ function nav(active){const links=[['Problems','/problems.html'],['Contests','/co
 async function updateNavUser(){const box=document.getElementById('nav-actions');if(!box)return;const u=await me();if(!u)return;const light=document.documentElement.dataset.theme==='light';box.innerHTML=`<button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()">${light?'☾':'☀'}</button><a class="btn ghost" href="/account.html">${escapeHtml(u.name)}</a>${u.role==='admin'?'<a class="btn" href="/admin.html">Admin</a>':''}<button class="btn primary" onclick="logout()">Log out</button>`}
 function shell(active,title,body){document.title=`ABLE — ${title}`;document.body.innerHTML=nav(active)+body+footer();updateNavUser()}
 function footer(){return `<footer class="footer"><div class="wrap footgrid"><div><div class="brand">ABLE</div><div class="small">Olympiad mathematics for serious problem solvers.</div></div><div class="footlinks"><a href="/problems.html">Problems</a><a href="/contests.html">Contests</a><a href="/articles.html">Articles</a><a href="/exams.html">Exams</a><a href="/about.html">About Us</a></div></div></footer>`}
-
 function currentLanguage(){return localStorage.getItem('able_lang')==='az'?'az':'en'}
 function setLanguage(lang){localStorage.setItem('able_lang',lang);return lang}
-function localized(item, field, lang=currentLanguage()){
-  const az=item?.[`${field}Az`];const en=item?.[`${field}En`];const old=item?.[field];
-  return lang==='az'?(az||en||old||''):(en||az||old||'');
-}
+function localized(item,field,lang=currentLanguage()){const az=item?.[`${field}Az`],en=item?.[`${field}En`],old=item?.[field];return lang==='az'?(az||en||old||''):(en||az||old||'')}
 function languageSwitch(){const lang=currentLanguage();return `<div class="language-switch" role="group" aria-label="Language"><button type="button" class="${lang==='az'?'active':''}" data-lang="az">AZE</button><button type="button" class="${lang==='en'?'active':''}" data-lang="en">ENG</button></div>`}
 function bindLanguageSwitch(renderFn){document.querySelectorAll('.language-switch button').forEach(b=>b.onclick=()=>{setLanguage(b.dataset.lang);renderFn()})}
 function typesetMath(root){if(!root)return;if(window.MathJax?.typesetPromise)return MathJax.typesetPromise([root]).catch(console.error);setTimeout(()=>typesetMath(root),300)}
