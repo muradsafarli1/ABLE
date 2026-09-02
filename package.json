@@ -3,7 +3,7 @@
   "version":"2.1.0",
   "private":true,
   "description":"ABLE Olympiad Mathematics platform",
-  "scripts":{"start":"node server.js"},
+  "scripts":{"start":"node db-check.js && node server.js"},
   "engines":{"node":">=18"},
   "dependencies":{"pg":"^8.16.3"}
 }
