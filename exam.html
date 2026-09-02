@@ -5,80 +5,57 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ABLE — Exam</title>
 <link rel="stylesheet" href="/style.css">
-<!-- app.js MUST load before the inline exam script because the exam uses requireUser() and api(). -->
 <script src="/app.js"></script>
+<script>window.MathJax={tex:{inlineMath:[['\\(','\\)'],['$','$']],displayMath:[['\\[','\\]'],['$$','$$']]},svg:{fontCache:'global'}};</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
 </head>
 <body>
 <script>
 (async()=>{
-  const u=await requireUser();
-  if(!u)return;
-
+  const u=await requireUser();if(!u)return;
   const id=new URLSearchParams(location.search).get('id');
   if(!id){location.href='/exams.html';return;}
-
-  try {
+  try{
     const d=await api('/api/exams/'+encodeURIComponent(id));
-    const e=d.exam;
-    if(!e){location.href='/exams.html';return;}
-
-    let answers={};
+    const e=d.exam;if(!e){location.href='/exams.html';return;}
+    const storageKey='able_exam_'+id;
+    const saved=JSON.parse(localStorage.getItem(storageKey)||'{}');
+    let answers=saved.answers||{};
+    let startedAt=saved.startedAt||new Date().toISOString();
     let finished=false;
-    let end=Date.now()+Number(e.durationMinutes||60)*60000;
+    const durationMs=Number(e.durationMinutes||60)*60000;
+    let end=saved.end||Date.now()+durationMs;
+    if(end<Date.now() && !saved.submitted) end=Date.now()+durationMs;
 
-    const enter=()=>{
-      if(document.documentElement.requestFullscreen){
-        document.documentElement.requestFullscreen().catch(()=>{});
-      }
-    };
+    const formatTime=ms=>{const total=Math.max(0,Math.ceil(ms/1000));const h=Math.floor(total/3600);const m=Math.floor((total%3600)/60);const s=total%60;return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`};
+    const saveLocal=()=>localStorage.setItem(storageKey,JSON.stringify({answers,startedAt,end,submitted:false}));
+    const enterFullscreen=()=>document.documentElement.requestFullscreen?.().catch(()=>{});
 
-    const finish=async()=>{
-      if(finished)return;
-      finished=true;
-      try{
-        await api('/api/exams/'+encodeURIComponent(id)+'/submit',{
-          method:'POST',
-          body:JSON.stringify({answers})
-        });
-      }catch(err){
-        finished=false;
-        toast(err.message);
-        return;
-      }
-
-      document.body.innerHTML='<div class="exam-finished"><h1>Exam submitted.</h1><p>Your result has been saved automatically.</p><a class="btn primary" href="/exams.html">Back to Exams</a></div>';
+    const finish=async(reason='manual')=>{
+      if(finished)return;finished=true;
+      clearInterval(timer);saveLocal();
+      try{await api('/api/exams/'+encodeURIComponent(id)+'/submit',{method:'POST',body:JSON.stringify({answers,startedAt,reason})});localStorage.setItem(storageKey,JSON.stringify({answers,startedAt,end,submitted:true}));}
+      catch(err){finished=false;toast(err.message);return;}
+      document.body.innerHTML=`<main class="exam-finished"><div><div class="eyebrow">EXAM SUBMITTED</div><h1>Submission saved.</h1><p>Your answers have been saved automatically.</p><button class="btn primary" onclick="window.print()">Save / Print PDF</button> <a class="btn" href="/exams.html">Back to Exams</a></div></main>`;
       document.exitFullscreen?.().catch(()=>{});
     };
 
     const render=()=>{
-      document.body.innerHTML=`<main class="exam-screen"><div class="exam-top"><strong>${escapeHtml(e.title)}</strong><span id="timer"></span><button class="btn primary" id="finish">Finish</button></div><div class="exam-questions">${(e.questions||[]).map((q,i)=>`<article class="exam-question"><div class="tag">Question ${i+1}</div><div class="question-text">${escapeHtml(q.statement||q.text||'')}</div><textarea class="textarea" data-i="${i}" placeholder="Your solution..."></textarea></article>`).join('')}</div></main>`;
-
-      document.querySelectorAll('[data-i]').forEach(x=>{
-        x.value=answers[x.dataset.i]||'';
-        x.oninput=()=>answers[x.dataset.i]=x.value;
-      });
-
-      document.getElementById('finish').onclick=finish;
-      enter();
+      document.body.innerHTML=`<main class="exam-screen"><header class="exam-top"><div><div class="exam-label">ABLE EXAM</div><h1>${escapeHtml(e.title)}</h1></div><div class="exam-clock" id="timer">${formatTime(end-Date.now())}</div><div class="exam-actions"><button class="btn" id="pdf">Save / Print PDF</button><button class="btn primary" id="finish">Finish</button></div></header><div class="exam-paper" id="exam-paper"><div class="exam-paper-title"><h2>${escapeHtml(e.title)}</h2><p>${escapeHtml(e.description||'')}</p></div>${(e.questions||[]).map((q,i)=>`<section class="exam-question"><div class="problem-number">Problem ${i+1}</div><div class="question-text">${escapeHtml(q.statement||q.text||'')}</div><textarea class="textarea exam-answer" data-i="${i}" placeholder="Write your solution here..."></textarea></section>`).join('')}</div></main>`;
+      document.querySelectorAll('.exam-answer').forEach(x=>{x.value=answers[x.dataset.i]||'';x.oninput=()=>{answers[x.dataset.i]=x.value;saveLocal()}});
+      document.getElementById('finish').onclick=()=>finish('manual');
+      document.getElementById('pdf').onclick=()=>window.print();
+      enterFullscreen();
+      if(window.MathJax?.typesetPromise)MathJax.typesetPromise([document.getElementById('exam-paper')]).catch(console.error);
     };
 
-    render();
-
-    const timer=setInterval(()=>{
-      const left=Math.max(0,end-Date.now());
-      const s=Math.ceil(left/1000);
-      const el=document.getElementById('timer');
-      if(el)el.textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
-      if(left<=0){clearInterval(timer);finish();}
-    },250);
-
-    document.addEventListener('fullscreenchange',()=>{
-      if(!document.fullscreenElement&&!finished)enter();
-    });
-  } catch(err) {
-    console.error('Exam loading error:',err);
-    document.body.innerHTML=`<div style="padding:80px;text-align:center;color:white;font-family:sans-serif"><h1>Unable to load exam</h1><p>${escapeHtml(err.message)}</p><a href="/exams.html" style="color:#60a5fa">← Back to Exams</a></div>`;
-  }
+    render();saveLocal();
+    const timer=setInterval(()=>{const left=end-Date.now();const el=document.getElementById('timer');if(el)el.textContent=formatTime(left);if(left<=0)finish('time');},250);
+    window.addEventListener('beforeunload',e=>{if(!finished){saveLocal();e.preventDefault();e.returnValue='';}});
+    document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement&&!finished){toast('Fullscreen is required for the exam.');setTimeout(enterFullscreen,250)}});
+    document.addEventListener('visibilitychange',()=>{if(document.hidden&&!finished)toast('Please return to the exam. The timer continues running.')});
+    document.addEventListener('contextmenu',e=>{if(!finished)e.preventDefault()});
+  }catch(err){console.error('Exam loading error:',err);document.body.innerHTML=`<div class="error-page"><h1>Unable to load exam</h1><p>${escapeHtml(err.message)}</p><a href="/exams.html">← Back to Exams</a></div>`}
 })();
 </script>
 </body>
