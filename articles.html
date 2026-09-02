@@ -1,59 +1,21 @@
 <!doctype html>
 <html>
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>ABLE — Articles</title>
-  <link rel="stylesheet" href="/style.css">
-  <script defer src="/app.js"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ABLE — Articles</title>
+<link rel="stylesheet" href="/style.css">
+<script src="/app.js"></script>
 </head>
-
 <body>
-
 <script>
-document.addEventListener('DOMContentLoaded', async () => {
-
-  const d = await api('/api/content');
-
-  const cards = d.articles.map(a => `
-    <article class="card">
-      <div class="tag">${a.category || 'Article'}</div>
-      <h3>${a.title}</h3>
-      <p>${a.excerpt || ''}</p>
-      <div class="meta">
-        <span>ABLE Handout</span>
-        <span>Read →</span>
-      </div>
-    </article>
-  `).join('');
-
-  shell(
-    'Articles',
-    'Articles',
-    `
-      <section class="pagehero">
-        <div class="wrap">
-          <div class="eyebrow">03 — Articles</div>
-          <h1>Learn the ideas,<br>not just the answers.</h1>
-          <p class="lead">
-            Handouts built around reusable olympiad techniques — including the
-            Lambda substitution work you want to develop into a recurring method.
-          </p>
-        </div>
-      </section>
-
-      <section class="section">
-        <div class="wrap">
-          <div class="cards">
-            ${cards}
-          </div>
-        </div>
-      </section>
-    `
-  );
-
-});
+(async()=>{
+  try{
+    const d=await api('/api/content');
+    const cards=(d.articles||[]).map(a=>`<article class="card"><div class="tag">${escapeHtml(a.category||'Article')}</div><h3>${escapeHtml(a.title)}</h3><p>${escapeHtml(a.excerpt||'')}</p><div class="meta"><span>ABLE Handout</span><a href="/article.html?id=${encodeURIComponent(a.id)}">Read →</a></div></article>`).join('');
+    shell('Articles','Articles',`<section class="pagehero"><div class="wrap"><div class="eyebrow">03 — Articles</div><h1>Learn the ideas,<br>not just the answers.</h1><p class="lead">Handouts built around reusable olympiad techniques — including limits, substitutions, symmetry and other methods worth remembering.</p></div></section><section class="section"><div class="wrap"><div class="cards">${cards||'<div class="empty">No articles available yet.</div>'}</div></div></section>`);
+  }catch(e){console.error(e);document.body.innerHTML=`<div class="error-page"><h1>Unable to load articles</h1><p>${escapeHtml(e.message)}</p><a href="/">← Back to ABLE</a></div>`}
+})();
 </script>
-
 </body>
 </html>
