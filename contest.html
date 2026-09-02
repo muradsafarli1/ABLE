@@ -5,16 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ABLE — Contest</title>
 <link rel="stylesheet" href="/style.css">
-<!-- app.js MUST load before the inline script because this page uses api() and shell(). -->
 <script src="/app.js"></script>
 <script>
-window.MathJax={
-  tex:{
-    inlineMath:[['\\(','\\)'],['$','$']],
-    displayMath:[['\\[','\\]'],['$$','$$']]
-  },
-  svg:{fontCache:'global'}
-};
+window.MathJax={tex:{inlineMath:[['\\(','\\)'],['$','$']],displayMath:[['\\[','\\]'],['$$','$$']]},svg:{fontCache:'global'}};
 </script>
 <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
 </head>
@@ -23,61 +16,15 @@ window.MathJax={
 (async()=>{
   const id=new URLSearchParams(location.search).get('id');
   if(!id){location.href='/contests.html';return;}
-
-  try {
+  try{
     const d=await api('/api/content');
     const c=(d.contests||[]).find(x=>x.id===id);
     if(!c){location.href='/contests.html';return;}
-
     const problems=c.problems||[];
-
-    shell('Contests',c.title,`
-      <section class="pagehero">
-        <div class="wrap">
-          <div class="eyebrow">${escapeHtml(c.type||'Contest')} · ${escapeHtml(c.year||'')}</div>
-          <h1>${escapeHtml(c.title)}</h1>
-          <p class="lead">${escapeHtml(c.description||'')}</p>
-        </div>
-      </section>
-
-      <section class="section">
-        <div class="wrap">
-          <main class="contest-paper" id="contest-content">
-            ${problems.length?problems.map((p,i)=>`
-              <article class="contest-problem">
-                <div class="tag">Problem ${i+1}</div>
-                <div class="question-text" style="white-space:pre-wrap;line-height:1.9;font-size:18px;">
-${escapeHtml(p.statement||'')}
-                </div>
-                ${p.solution?`
-                  <div class="tag" style="margin-top:28px">Solution:</div>
-                  <div class="question-text" style="white-space:pre-wrap;line-height:1.9;font-size:18px;">
-${escapeHtml(p.solution)}
-                  </div>
-                `:''}
-              </article>
-            `).join(''):'<p class="lead">Problems will be added soon.</p>'}
-          </main>
-
-          <div style="margin-top:30px">
-            <a class="btn" href="/contests.html">← Back to Contests</a>
-          </div>
-        </div>
-      </section>
-    `);
-
-    const renderMath=()=>{
-      if(window.MathJax&&MathJax.typesetPromise){
-        MathJax.typesetPromise([document.getElementById('contest-content')]).catch(console.error);
-      }else{
-        setTimeout(renderMath,300);
-      }
-    };
+    shell('Contests',c.title,`<main class="contest-page"><section class="contest-hero"><div class="wrap contest-wrap"><div class="eyebrow">${escapeHtml(c.type||'Contest')} · ${escapeHtml(c.year||'')}</div><h1>${escapeHtml(c.title)}</h1><p class="lead">${escapeHtml(c.description||'')}</p></div></section><section class="section contest-section"><div class="wrap contest-wrap"><article class="contest-paper" id="contest-content">${problems.length?problems.map((p,i)=>{const code=p.code||('A'+(i+1));return `<section class="contest-problem"><div class="contest-problem-heading"><span>${escapeHtml(code)}</span></div><div class="question-text">${escapeHtml(p.statement||'Problem statement has not been added yet.')}</div></section>`}).join(''):'<p class="lead">Problems will be added soon.</p>'}</article><div class="contest-actions"><a class="btn" href="/contests.html">← Back to Contests</a></div></div></section></main>`);
+    const renderMath=()=>{if(window.MathJax?.typesetPromise){MathJax.typesetPromise([document.getElementById('contest-content')]).catch(console.error)}else setTimeout(renderMath,300)};
     renderMath();
-  } catch(err) {
-    console.error('Contest loading error:',err);
-    document.body.innerHTML=`<div style="padding:80px;text-align:center;color:white;font-family:sans-serif"><h1>Unable to load contest</h1><p>${escapeHtml(err.message)}</p><a href="/contests.html" style="color:#60a5fa">← Back to Contests</a></div>`;
-  }
+  }catch(err){console.error('Contest loading error:',err);document.body.innerHTML=`<div class="error-page"><h1>Unable to load contest</h1><p>${escapeHtml(err.message)}</p><a href="/contests.html">← Back to Contests</a></div>`}
 })();
 </script>
 </body>
