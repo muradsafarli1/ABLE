@@ -1,1 +1,21 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ABLE — Contests</title><link rel="stylesheet" href="/style.css"><script src="/app.js"></script></head><body><script>(async()=>{try{const d=await api('/api/content');const cards=(d.contests||[]).map(c=>`<article class="card"><div class="tag">${escapeHtml(c.type||'Contest')} · ${escapeHtml(c.year||'')}</div><h3>${escapeHtml(c.title)}</h3><p>${escapeHtml(c.description||'')}</p><div class="meta"><span>${escapeHtml(c.status||'published')}</span><a href="/contest.html?id=${encodeURIComponent(c.id)}">Read →</a></div></article>`).join('');shell('Contests','Contests',`<section class="pagehero"><div class="wrap"><div class="eyebrow">02 — Contests</div><h1>Collections worth<br>solving.</h1><p class="lead">IMO, BMO, national olympiads and other contest material — statements and full solutions in one clean place.</p></div></section><section class="section"><div class="wrap"><div class="cards">${cards||'<div class="empty">No contests available yet.</div>'}</div></div></section>`)}catch(e){console.error(e);document.body.innerHTML='<div style="padding:80px;text-align:center;color:white;font-family:sans-serif"><h1>Unable to load contests</h1><p>'+escapeHtml(e.message)+'</p><a href="/">← Back to ABLE</a></div>'}})();</script></body></html>
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ABLE — Contests</title>
+<link rel="stylesheet" href="/style.css">
+<script src="/app.js"></script>
+</head>
+<body>
+<script>
+(async()=>{
+  try{
+    const d=await api('/api/content');
+    const cards=(d.contests||[]).map(c=>`<article class="card"><div class="tag">${escapeHtml(c.type||'Contest')} · ${escapeHtml(c.year||'')}</div><h3>${escapeHtml(c.title)}</h3><p>${escapeHtml(c.description||'')}</p><div class="meta"><span>${escapeHtml(c.status||'published')}</span><a href="/contest.html?id=${encodeURIComponent(c.id)}">Read →</a></div></article>`).join('');
+    shell('Contests','Contests',`<section class="pagehero"><div class="wrap"><div class="eyebrow">02 — Contests</div><h1>Collections worth<br>solving.</h1><p class="lead">IMO, BMO, national olympiads and other contest material — complete statements in one clean place.</p></div></section><section class="section"><div class="wrap"><div class="cards">${cards||'<div class="empty">No contests available yet.</div>'}</div></div></section>`);
+  }catch(e){console.error(e);document.body.innerHTML=`<div class="error-page"><h1>Unable to load contests</h1><p>${escapeHtml(e.message)}</p><a href="/">← Back to ABLE</a></div>`}
+})();
+</script>
+</body>
+</html>
