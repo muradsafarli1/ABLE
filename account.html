@@ -1,60 +1,56 @@
 <!doctype html>
 <html>
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>ABLE — Account</title>
-  <link rel="stylesheet" href="/style.css">
-  <script defer src="/app.js"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ABLE — Account</title>
+<link rel="stylesheet" href="/style.css">
+<script src="/app.js"></script>
 </head>
-
 <body>
-
 <script>
 document.addEventListener('DOMContentLoaded', async () => {
-
   const u = await requireUser();
-
   if (!u) return;
 
-  shell(
-    '',
-    'Account',
-    `
-      <section class="pagehero">
-        <div class="wrap">
-          <div class="eyebrow">ABLE Account</div>
-          <h1>Welcome, ${u.name.replace(/</g, '&lt;')}.</h1>
-          <p class="lead">
-            Your account is active. This is the base layer for saved problems,
-            submissions and contributor features.
-          </p>
+  let history = [];
+  try { history = (await api('/api/exams/history')).history || []; } catch {}
+
+  shell('', 'Account', `
+    <section class="pagehero">
+      <div class="wrap">
+        <div class="eyebrow">ABLE Account</div>
+        <h1>Welcome, ${escapeHtml(u.name)}.</h1>
+        <p class="lead">Your account, exam registrations and completed exams are saved here.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <div class="bigcard">
+          <div class="tag">PROFILE</div>
+          <h2>${escapeHtml(u.email)}</h2>
+          <p>Role: ${escapeHtml(u.role)}</p>
+          <p>Member since: ${new Date(u.createdAt).toLocaleDateString()}</p>
+          <button class="btn" onclick="logout()">Log out</button>
+          ${u.role==='admin' ? '<a class="btn primary" href="/admin.html">Admin Panel</a>' : ''}
         </div>
-      </section>
 
-      <section class="section">
-        <div class="wrap">
-          <div class="bigcard">
-            <div class="tag">PROFILE</div>
-            <h2>${u.email}</h2>
-            <p>Role: ${u.role}</p>
-            <p>Member since: ${new Date(u.createdAt).toLocaleDateString()}</p>
-
-            <button class="btn" onclick="logout()">Log out</button>
-
-            ${
-              u.role === 'admin'
-                ? '<a class="btn primary" href="/admin.html">Admin Panel</a>'
-                : ''
-            }
-          </div>
+        <div class="bigcard" style="margin-top:25px">
+          <div class="tag">EXAM HISTORY</div>
+          <h2>Completed exams</h2>
+          ${history.length ? history.map(h=>`
+            <div style="padding:18px 0;border-bottom:1px solid rgba(255,255,255,.1)">
+              <strong>${escapeHtml(h.title)}</strong>
+              <div class="small">Submitted ${h.submittedAt ? new Date(h.submittedAt).toLocaleString() : '—'}</div>
+              <div style="margin-top:10px"><a class="btn" href="/exam.html?id=${encodeURIComponent(h.examId)}">Review exam</a></div>
+            </div>
+          `).join('') : '<p class="small">You have not completed an exam yet.</p>'}
         </div>
-      </section>
-    `
-  );
-
+      </div>
+    </section>
+  `);
 });
 </script>
-
 </body>
 </html>
