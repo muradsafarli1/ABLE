@@ -12,8 +12,13 @@
 (async()=>{
   try{
     const d=await api('/api/content');
-    const cards=(d.articles||[]).map(a=>`<article class="card"><div class="tag">${escapeHtml(a.category||'Article')}</div><h3>${escapeHtml(localized(a,'title')||a.titleEn||a.titleAz||a.title||'Untitled article')}</h3><p>${escapeHtml(localized(a,'excerpt')||a.excerptEn||a.excerptAz||a.excerpt||'')}</p><div class="meta"><a href="/article.html?id=${encodeURIComponent(a.id)}">Read →</a></div></article>`).join('');
-    shell('Articles','Articles',`<section class="pagehero"><div class="wrap"><div class="eyebrow">03 — Articles</div><h1>Learn the ideas,<br>not just the answers.</h1><p class="lead">Handouts built around reusable olympiad techniques — including limits, substitutions, symmetry and other methods worth remembering.</p></div></section><section class="section"><div class="wrap"><div class="cards">${cards||'<div class="empty">No articles available yet.</div>'}</div></div></section>`);
+    const articles=d.articles||[];
+    function render(list){
+      return list.map(a=>`<article class="card"><div class="tag">${escapeHtml(a.category||'Article')}</div><h3>${escapeHtml(localized(a,'title')||a.titleEn||a.titleAz||a.title||'Untitled article')}</h3><p>${escapeHtml(localized(a,'excerpt')||a.excerptEn||a.excerptAz||a.excerpt||'')}</p><div class="meta"><a href="/article.html?id=${encodeURIComponent(a.id)}">Read →</a></div></article>`).join('')||'<div class="empty">No articles found.</div>';
+    }
+    shell('Articles','Articles',`<section class="pagehero"><div class="wrap"><div class="eyebrow">03 — Articles</div><h1>Learn the ideas,<br>not just the answers.</h1><p class="lead">Handouts built around reusable olympiad techniques — including limits, substitutions, symmetry and other methods worth remembering.</p></div></section><section class="section"><div class="wrap"><div class="toolbar"><input id="articleSearch" class="input" type="search" placeholder="Search articles..." aria-label="Search articles"></div><div id="articleCards" class="cards">${render(articles)}</div></div></section>`);
+    const input=document.getElementById('articleSearch');
+    input.addEventListener('input',()=>{const q=input.value.trim().toLowerCase();document.getElementById('articleCards').innerHTML=render(articles.filter(a=>[a.title,a.titleEn,a.titleAz,a.category,a.excerpt,a.excerptEn,a.excerptAz,a.body,a.bodyEn,a.bodyAz].filter(Boolean).some(v=>String(v).toLowerCase().includes(q))));});
   }catch(e){console.error(e);document.body.innerHTML=`<div class="error-page"><h1>Unable to load articles</h1><p>${escapeHtml(e.message)}</p><a href="/">← Back to ABLE</a></div>`}
 })();
 </script>
