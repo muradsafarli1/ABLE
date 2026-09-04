@@ -1774,10 +1774,12 @@ async function api(req,res){
           d.videos[i].titleEn||
           '',
 
+    
+
         titleAz:
-          x.titleAz??
-          d.videos[i].titleAz||
-          '',
+  x.titleAz ??
+  d.videos[i].titleAz ??
+  '',
 
         thumbnail:
           x.thumbnail||
