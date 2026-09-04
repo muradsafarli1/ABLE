@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Videos — ABLE</title><link rel="stylesheet" href="style.css">
+<style>
+.videos-wrap{max-width:1200px;margin:0 auto;padding:40px 24px}.video-search{width:100%;max-width:600px;display:block;margin:0 auto 34px;padding:15px 20px;border-radius:12px;border:1px solid var(--border,#444);background:var(--card,#151515);color:inherit;font-size:16px}.videos-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px}.video-card{overflow:hidden;border-radius:16px;background:var(--card,#151515);border:1px solid var(--border,#333);text-decoration:none;color:inherit;transition:transform .2s,box-shadow .2s}.video-card:hover{transform:translateY(-4px);box-shadow:0 10px 30px #0003}.video-thumb{display:block;width:100%;aspect-ratio:16/9;object-fit:cover}.video-info{padding:18px 20px}.video-info h2{margin:0 0 8px;font-size:20px}.video-info p{margin:0;opacity:.72;line-height:1.5}.empty{text-align:center;opacity:.65;padding:50px;grid-column:1/-1}@media(max-width:850px){.videos-grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:560px){.videos-grid{grid-template-columns:1fr}}
+</style>
+</head><body>
+<header id="site-header"></header>
+<main class="videos-wrap"><h1>Videos</h1><input id="search" class="video-search" placeholder="Search videos..." autocomplete="off"><section id="grid" class="videos-grid"></section></main>
+<script>
+const API=(window.API_BASE||'')+'/api/content';let videos=[];
+function render(){const q=document.getElementById('search').value.trim().toLowerCase();const list=videos.filter(v=>[v.title,v.titleEn,v.titleAz,v.description,v.descriptionEn,v.descriptionAz].filter(Boolean).join(' ').toLowerCase().includes(q));const g=document.getElementById('grid');g.innerHTML=list.length?list.map(v=>`<a class="video-card" href="${escapeHtml(v.youtubeUrl||v.url||'#')}" target="_blank" rel="noopener noreferrer"><img class="video-thumb" src="${escapeHtml(v.thumbnail||v.image||'')}" alt=""><div class="video-info"><h2>${escapeHtml(v.titleEn||v.titleAz||v.title||'Untitled video')}</h2>${(v.descriptionEn||v.description||v.descriptionAz)?`<p>${escapeHtml(v.descriptionEn||v.description||v.descriptionAz)}</p>`:''}</div></a>`).join(''):'<div class="empty">No videos found.</div>'}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+document.getElementById('search').addEventListener('input',render);
+fetch(API).then(r=>r.json()).then(d=>{videos=d.videos||[];render()}).catch(()=>render());
+</script></body></html>
