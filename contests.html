@@ -12,7 +12,7 @@
 (async()=>{
   try{
     const d=await api('/api/content');
-    const cards=(d.contests||[]).map(c=>`<article class="card"><div class="tag">${escapeHtml(c.type||'Contest')} · ${escapeHtml(c.year||'')}</div><h3>${escapeHtml(c.title)}</h3><p>${escapeHtml(c.description||'')}</p><div class="meta"><span>${escapeHtml(c.status||'published')}</span><a href="/contest.html?id=${encodeURIComponent(c.id)}">Read →</a></div></article>`).join('');
+    const cards=(d.contests||[]).map(c=>`<article class="card"><div class="tag">${escapeHtml(c.type||'Contest')} · ${escapeHtml(c.year||'')}</div><h3>${escapeHtml(localized(c,'title')||c.titleEn||c.titleAz||c.title||'Untitled contest')}</h3><p>${escapeHtml(localized(c,'description')||c.descriptionEn||c.descriptionAz||c.description||'')}</p><div class="meta"><span>${escapeHtml(c.status||'published')}</span><a href="/contest.html?id=${encodeURIComponent(c.id)}">Read →</a></div></article>`).join('');
     shell('Contests','Contests',`<section class="pagehero"><div class="wrap"><div class="eyebrow">02 — Contests</div><h1>Collections worth<br>solving.</h1><p class="lead">IMO, BMO, national olympiads and other contest material — complete statements in one clean place.</p></div></section><section class="section"><div class="wrap"><div class="cards">${cards||'<div class="empty">No contests available yet.</div>'}</div></div></section>`);
   }catch(e){console.error(e);document.body.innerHTML=`<div class="error-page"><h1>Unable to load contests</h1><p>${escapeHtml(e.message)}</p><a href="/">← Back to ABLE</a></div>`}
 })();
