@@ -4,56 +4,2186 @@ const path=require('path');
 const crypto=require('crypto');
 const {URL}=require('url');
 const {Pool}=require('pg');
-const ROOT=__dirname,PUBLIC=ROOT,DATA_DIR=path.join(ROOT,'data'),DB_FILE=path.join(DATA_DIR,'db.json');
+
+const ROOT=__dirname,
+PUBLIC=ROOT,
+DATA_DIR=path.join(ROOT,'data'),
+DB_FILE=path.join(DATA_DIR,'db.json');
+
 if(!fs.existsSync(DATA_DIR))fs.mkdirSync(DATA_DIR,{recursive:true});
-const pool=process.env.DATABASE_URL?new Pool({connectionString:process.env.DATABASE_URL,ssl:{rejectUnauthorized:false}}):null;
+
+const pool=process.env.DATABASE_URL
+  ?new Pool({
+      connectionString:process.env.DATABASE_URL,
+      ssl:{rejectUnauthorized:false}
+    })
+  :null;
+
 let dbReady=null;
-async function initPersistentDb(){if(!pool)return;await pool.query('CREATE TABLE IF NOT EXISTS able_state (id INTEGER PRIMARY KEY, data JSONB NOT NULL)');const r=await pool.query('SELECT id FROM able_state WHERE id=1');if(!r.rowCount)await pool.query('INSERT INTO able_state (id,data) VALUES (1,$1)',[seed])}
-function cors(res,req){const origin=req.headers.origin;if(origin){res.setHeader('Access-Control-Allow-Origin',origin);res.setHeader('Vary','Origin')}res.setHeader('Access-Control-Allow-Credentials','true');res.setHeader('Access-Control-Allow-Methods','GET,POST,PUT,DELETE,OPTIONS');res.setHeader('Access-Control-Allow-Headers','Content-Type, Authorization')}
-function send(res,req,status,data,type='application/json',extra={}){cors(res,req);res.writeHead(status,{'Content-Type':type,'Cache-Control':'no-store',...extra});res.end(type==='application/json'?JSON.stringify(data):data)}
-function body(req){return new Promise((resolve,reject)=>{let b='';req.on('data',c=>{b+=c;if(b.length>10e6)req.destroy()});req.on('end',()=>{try{resolve(b?JSON.parse(b):{})}catch(e){reject(e)}})})}
-function id(prefix){return prefix+'_'+crypto.randomBytes(6).toString('hex')}
-function hashPassword(password,salt=crypto.randomBytes(16).toString('hex')){return new Promise((resolve,reject)=>crypto.scrypt(password,salt,64,(e,key)=>e?reject(e):resolve(salt+':'+key.toString('hex'))))}
-function verifyPassword(password,stored){return new Promise((resolve,reject)=>{const [salt,key]=String(stored||'').split(':');if(!salt||!key)return resolve(false);crypto.scrypt(password,salt,64,(e,derived)=>{if(e)return reject(e);try{resolve(crypto.timingSafeEqual(Buffer.from(key,'hex'),derived))}catch{resolve(false)}})})}
-function cookies(req){return Object.fromEntries((req.headers.cookie||'').split(';').filter(Boolean).map(x=>{const i=x.indexOf('=');return[x.slice(0,i).trim(),decodeURIComponent(x.slice(i+1))]}))}
+
+async function initPersistentDb(){
+  if(!pool)return;
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS able_state (
+      id INTEGER PRIMARY KEY,
+      data JSONB NOT NULL
+    )
+  `);
+
+  const r=await pool.query(
+    'SELECT id FROM able_state WHERE id=1'
+  );
+
+  if(!r.rowCount){
+    await pool.query(
+      'INSERT INTO able_state (id,data) VALUES (1,$1)',
+      [seed]
+    );
+  }
+}
+
+function cors(res,req){
+  const origin=req.headers.origin;
+
+  if(origin){
+    res.setHeader(
+      'Access-Control-Allow-Origin',
+      origin
+    );
+
+    res.setHeader('Vary','Origin');
+  }
+
+  res.setHeader(
+    'Access-Control-Allow-Credentials',
+    'true'
+  );
+
+  res.setHeader(
+    'Access-Control-Allow-Methods',
+    'GET,POST,PUT,DELETE,OPTIONS'
+  );
+
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization'
+  );
+}
+
+function send(
+  res,
+  req,
+  status,
+  data,
+  type='application/json',
+  extra={}
+){
+  cors(res,req);
+
+  res.writeHead(
+    status,
+    {
+      'Content-Type':type,
+      'Cache-Control':'no-store',
+      ...extra
+    }
+  );
+
+  res.end(
+    type==='application/json'
+      ?JSON.stringify(data)
+      :data
+  );
+}
+
+function body(req){
+  return new Promise((resolve,reject)=>{
+    let b='';
+
+    req.on('data',c=>{
+      b+=c;
+
+      if(b.length>10e6){
+        req.destroy();
+      }
+    });
+
+    req.on('end',()=>{
+      try{
+        resolve(b?JSON.parse(b):{});
+      }catch(e){
+        reject(e);
+      }
+    });
+  });
+}
+
+function id(prefix){
+  return prefix+'_'+crypto.randomBytes(6).toString('hex');
+}
+
+function hashPassword(
+  password,
+  salt=crypto.randomBytes(16).toString('hex')
+){
+  return new Promise((resolve,reject)=>
+    crypto.scrypt(
+      password,
+      salt,
+      64,
+      (e,key)=>
+        e
+          ?reject(e)
+          :resolve(
+              salt+':'+key.toString('hex')
+            )
+    )
+  );
+}
+
+function verifyPassword(password,stored){
+  return new Promise((resolve,reject)=>{
+    const [salt,key]=String(stored||'').split(':');
+
+    if(!salt||!key)return resolve(false);
+
+    crypto.scrypt(
+      password,
+      salt,
+      64,
+      (e,derived)=>{
+        if(e)return reject(e);
+
+        try{
+          resolve(
+            crypto.timingSafeEqual(
+              Buffer.from(key,'hex'),
+              derived
+            )
+          );
+        }catch{
+          resolve(false);
+        }
+      }
+    );
+  });
+}
+
+function cookies(req){
+  return Object.fromEntries(
+    (req.headers.cookie||'')
+      .split(';')
+      .filter(Boolean)
+      .map(x=>{
+        const i=x.indexOf('=');
+
+        return [
+          x.slice(0,i).trim(),
+          decodeURIComponent(x.slice(i+1))
+        ];
+      })
+  );
+}
+
 const sessions=new Map();
-function safeUser(u){return{id:u.id,name:u.name,email:u.email,role:u.role,createdAt:u.createdAt}}
-function currentUser(req){const sid=cookies(req).able_session;return sid?sessions.get(sid):null}
-function requireAuth(req,res,admin=false){const u=currentUser(req);if(!u){send(res,req,401,{error:'Authentication required'});return null}if(admin&&u.role!=='admin'){send(res,req,403,{error:'Admin access required'});return null}return u}
-const seed={users:[],problems:[
-{id:'p1',title:'Find all functions f : R → R satisfying a functional equation',titleEn:'Find all functions f : R → R satisfying a functional equation',titleAz:'',topic:'Algebra',difficulty:'Olympiad',source:'ABLE Sample',status:'published',statementEn:'Add the full problem statement in Admin.',statementAz:'',solutionEn:'Add the solution in Admin.',solutionAz:''},
-{id:'p2',title:'A divisibility problem with hidden valuation structure',titleEn:'A divisibility problem with hidden valuation structure',titleAz:'',topic:'Number Theory',difficulty:'Hard',source:'ABLE Sample',status:'published',statementEn:'',statementAz:'',solutionEn:'',solutionAz:''},
-{id:'p3',title:'The circle configuration that collapses under inversion',titleEn:'The circle configuration that collapses under inversion',titleAz:'',topic:'Geometry',difficulty:'Hard',source:'ABLE Sample',status:'published',statementEn:'',statementAz:'',solutionEn:'',solutionAz:''}],
-articles:[
-{id:'a1',title:'Lambda Substitution',titleEn:'Lambda Substitution',titleAz:'',category:'Algebra',excerpt:'A recurring technique for functional equations on R+ and beyond.',excerptEn:'A recurring technique for functional equations on R+ and beyond.',excerptAz:'',body:'Lambda substitution is one of the techniques ABLE wants students to recognise and reuse.',bodyEn:'Lambda substitution is one of the techniques ABLE wants students to recognise and reuse.',bodyAz:'',status:'published'},
-{id:'a2',title:'Limits in Functional Equations',titleEn:'Limits in Functional Equations',titleAz:'',category:'Methods',excerpt:'When a limit exists, turn it into information about the function.',excerptEn:'When a limit exists, turn it into information about the function.',excerptAz:'',body:'Study continuity-like consequences, monotonicity and boundedness.',bodyEn:'Study continuity-like consequences, monotonicity and boundedness.',bodyAz:'',status:'published'},
-{id:'a3',title:'How to Read an Olympiad Problem',titleEn:'How to Read an Olympiad Problem',titleAz:'',category:'Problem Solving',excerpt:'A compact framework for extracting structure before calculating.',excerptEn:'A compact framework for extracting structure before calculating.',excerptAz:'',body:'Identify objects, invariants, quantifiers and transformations.',bodyEn:'Identify objects, invariants, quantifiers and transformations.',bodyAz:'',status:'published'}],
-contests:[
-{id:'c1',title:'Balkan MO Training',titleEn:'Balkan MO Training',titleAz:'',year:'2026',type:'Training Set',description:'A focused collection for Balkan-level preparation.',descriptionEn:'A focused collection for Balkan-level preparation.',descriptionAz:'',status:'published',problems:[]},
-{id:'c2',title:'IMO Training Archive',titleEn:'IMO Training Archive',titleAz:'',year:'2026',type:'Archive',description:'Curated IMO-style problems and solutions.',descriptionEn:'Curated IMO-style problems and solutions.',descriptionAz:'',status:'published',problems:[]}],exams:[]};
-if(!fs.existsSync(DB_FILE))fs.writeFileSync(DB_FILE,JSON.stringify(seed,null,2));
+
+function safeUser(u){
+  return {
+    id:u.id,
+    name:u.name,
+    email:u.email,
+    role:u.role,
+    createdAt:u.createdAt
+  };
+}
+
+function currentUser(req){
+  const sid=cookies(req).able_session;
+
+  return sid
+    ?sessions.get(sid)
+    :null;
+}
+
+function requireAuth(req,res,admin=false){
+  const u=currentUser(req);
+
+  if(!u){
+    send(
+      res,
+      req,
+      401,
+      {error:'Authentication required'}
+    );
+
+    return null;
+  }
+
+  if(admin&&u.role!=='admin'){
+    send(
+      res,
+      req,
+      403,
+      {error:'Admin access required'}
+    );
+
+    return null;
+  }
+
+  return u;
+}
+
+
+/* =========================
+   DATABASE SEED
+========================= */
+
+const seed={
+  users:[],
+
+  problems:[
+    {
+      id:'p1',
+      title:'Find all functions f : R → R satisfying a functional equation',
+      titleEn:'Find all functions f : R → R satisfying a functional equation',
+      titleAz:'',
+      topic:'Algebra',
+      difficulty:'Olympiad',
+      source:'ABLE Sample',
+      status:'published',
+      statementEn:'Add the full problem statement in Admin.',
+      statementAz:'',
+      solutionEn:'Add the solution in Admin.',
+      solutionAz:''
+    },
+
+    {
+      id:'p2',
+      title:'A divisibility problem with hidden valuation structure',
+      titleEn:'A divisibility problem with hidden valuation structure',
+      titleAz:'',
+      topic:'Number Theory',
+      difficulty:'Hard',
+      source:'ABLE Sample',
+      status:'published',
+      statementEn:'',
+      statementAz:'',
+      solutionEn:'',
+      solutionAz:''
+    },
+
+    {
+      id:'p3',
+      title:'The circle configuration that collapses under inversion',
+      titleEn:'The circle configuration that collapses under inversion',
+      titleAz:'',
+      topic:'Geometry',
+      difficulty:'Hard',
+      source:'ABLE Sample',
+      status:'published',
+      statementEn:'',
+      statementAz:'',
+      solutionEn:'',
+      solutionAz:''
+    }
+  ],
+
+  articles:[
+    {
+      id:'a1',
+      title:'Lambda Substitution',
+      titleEn:'Lambda Substitution',
+      titleAz:'',
+      category:'Algebra',
+      excerpt:'A recurring technique for functional equations on R+ and beyond.',
+      excerptEn:'A recurring technique for functional equations on R+ and beyond.',
+      excerptAz:'',
+      body:'Lambda substitution is one of the techniques ABLE wants students to recognise and reuse.',
+      bodyEn:'Lambda substitution is one of the techniques ABLE wants students to recognise and reuse.',
+      bodyAz:'',
+      status:'published'
+    },
+
+    {
+      id:'a2',
+      title:'Limits in Functional Equations',
+      titleEn:'Limits in Functional Equations',
+      titleAz:'',
+      category:'Methods',
+      excerpt:'When a limit exists, turn it into information about the function.',
+      excerptEn:'When a limit exists, turn it into information about the function.',
+      excerptAz:'',
+      body:'Study continuity-like consequences, monotonicity and boundedness.',
+      bodyEn:'Study continuity-like consequences, monotonicity and boundedness.',
+      bodyAz:'',
+      status:'published'
+    },
+
+    {
+      id:'a3',
+      title:'How to Read an Olympiad Problem',
+      titleEn:'How to Read an Olympiad Problem',
+      titleAz:'',
+      category:'Problem Solving',
+      excerpt:'A compact framework for extracting structure before calculating.',
+      excerptEn:'A compact framework for extracting structure before calculating.',
+      excerptAz:'',
+      body:'Identify objects, invariants, quantifiers and transformations.',
+      bodyEn:'Identify objects, invariants, quantifiers and transformations.',
+      bodyAz:'',
+      status:'published'
+    }
+  ],
+
+  contests:[
+    {
+      id:'c1',
+      title:'Balkan MO Training',
+      titleEn:'Balkan MO Training',
+      titleAz:'',
+      year:'2026',
+      type:'Training Set',
+      description:'A focused collection for Balkan-level preparation.',
+      descriptionEn:'A focused collection for Balkan-level preparation.',
+      descriptionAz:'',
+      status:'published',
+      problems:[]
+    },
+
+    {
+      id:'c2',
+      title:'IMO Training Archive',
+      titleEn:'IMO Training Archive',
+      titleAz:'',
+      year:'2026',
+      type:'Archive',
+      description:'Curated IMO-style problems and solutions.',
+      descriptionEn:'Curated IMO-style problems and solutions.',
+      descriptionAz:'',
+      status:'published',
+      problems:[]
+    }
+  ],
+
+  exams:[],
+
+  /* =========================
+     VIDEOS
+  ========================= */
+
+  videos:[]
+};
+
+
+if(!fs.existsSync(DB_FILE)){
+  fs.writeFileSync(
+    DB_FILE,
+    JSON.stringify(seed,null,2)
+  );
+}
+
 dbReady=initPersistentDb();
-async function db(){await dbReady;if(pool){const r=await pool.query('SELECT data FROM able_state WHERE id=1');const d=r.rows[0]?.data||structuredClone(seed);normalize(d);return d}const d=JSON.parse(fs.readFileSync(DB_FILE,'utf8'));normalize(d);return d}
-function normalize(d){d.users??=[];d.problems??=[];d.articles??=[];d.contests??=[];d.exams??=[];d.videos??=[];d.contests.forEach(c=>c.problems??=[]);d.exams.forEach(e=>{e.questions??=[];e.registrations??=[];e.submissions??=[];e.titleEn??=e.title??'';e.titleAz??='';e.descriptionEn??=e.description??'';e.descriptionAz??='';e.questions.forEach(q=>{q.statementEn??=q.statement??q.text??'';q.statementAz??='';q.imageUrl??=q.image??''})});return d}
-async function save(d){if(pool)await pool.query('UPDATE able_state SET data=$1 WHERE id=1',[d]);else fs.writeFileSync(DB_FILE,JSON.stringify(d,null,2))}
-function publicExam(e){return{id:e.id,title:e.titleEn||e.title||'',titleEn:e.titleEn||e.title||'',titleAz:e.titleAz||'',description:e.descriptionEn||e.description||'',descriptionEn:e.descriptionEn||e.description||'',descriptionAz:e.descriptionAz||'',date:e.date||'',durationMinutes:Number(e.durationMinutes||60),status:e.status||'Upcoming',questions:(e.questions||[]).map((q,i)=>({id:q.id||'q_'+i,code:q.code||'Q'+(i+1),statement:q.statementEn||q.statement||q.text||'',statementEn:q.statementEn||q.statement||q.text||'',statementAz:q.statementAz||'',imageUrl:q.imageUrl||q.image||''}))}}
-async function api(req,res){const u=new URL(req.url,'http://localhost'),p=u.pathname;
-if(req.method==='GET'&&p==='/api/content'){const d=await db();return send(res,req,200,{problems:d.problems,articles:d.articles,contests:d.contests,videos:d.videos})}
-if(req.method==='GET'&&p==='/api/me'){const user=currentUser(req);return send(res,req,200,{user:user?safeUser(user):null})}
-if(req.method==='POST'&&p==='/api/signup'){try{const x=await body(req);if(!x.name||!x.email||!x.password||String(x.password).length<8)return send(res,req,400,{error:'Name, email and a password of at least 8 characters are required.'});const d=await db();if(d.users.some(v=>v.email.toLowerCase()===String(x.email).toLowerCase()))return send(res,req,409,{error:'An account with this email already exists.'});const user={id:id('u'),name:String(x.name).trim().slice(0,80),email:String(x.email).trim().toLowerCase(),password:await hashPassword(x.password),role:'user',createdAt:new Date().toISOString()};d.users.push(user);await save(d);const sid=crypto.randomBytes(32).toString('hex');sessions.set(sid,safeUser(user));return send(res,req,201,{user:safeUser(user)},'application/json',{'Set-Cookie':`able_session=${sid}; HttpOnly; Path=/; SameSite=None; Secure; Max-Age=604800`})}catch(e){console.error(e);return send(res,req,500,{error:'Could not create account.'})}}
-if(req.method==='POST'&&p==='/api/login'){try{const x=await body(req),d=await db(),user=d.users.find(v=>v.email.toLowerCase()===String(x.email||'').toLowerCase());if(!user||!(await verifyPassword(x.password||'',user.password)))return send(res,req,401,{error:'Invalid email or password.'});const sid=crypto.randomBytes(32).toString('hex');sessions.set(sid,safeUser(user));return send(res,req,200,{user:safeUser(user)},'application/json',{'Set-Cookie':`able_session=${sid}; HttpOnly; Path=/; SameSite=None; Secure; Max-Age=604800`})}catch(e){console.error(e);return send(res,req,500,{error:'Login failed.'})}}
-if(req.method==='POST'&&p==='/api/change-password'){try{const x=await body(req);const email=String(x.email||'').trim().toLowerCase(),currentPassword=String(x.currentPassword||''),newPassword=String(x.newPassword||'');if(!email||!currentPassword||newPassword.length<8)return send(res,req,400,{error:'Email, current password and a new password of at least 8 characters are required.'});const d=await db(),user=d.users.find(v=>v.email.toLowerCase()===email);if(!user||!(await verifyPassword(currentPassword,user.password)))return send(res,req,401,{error:'Email or current password is incorrect.'});user.password=await hashPassword(newPassword);await save(d);return send(res,req,200,{ok:true})}catch(e){console.error(e);return send(res,req,500,{error:'Could not change password.'})}}
-if(req.method==='POST'&&p==='/api/logout'){sessions.delete(cookies(req).able_session);return send(res,req,200,{ok:true},'application/json',{'Set-Cookie':'able_session=; HttpOnly; Path=/; Max-Age=0; SameSite=None; Secure'})}
-if(req.method==='GET'&&p==='/api/admin/users'){if(!requireAuth(req,res,true))return;const d=await db();return send(res,req,200,{users:d.users.map(safeUser)})}
-if(req.method==='GET'&&p==='/api/exams'){const d=await db();return send(res,req,200,{exams:d.exams.map(publicExam)})}
-if(req.method==='GET'&&p==='/api/exams/history'){const user=requireAuth(req,res);if(!user)return;const d=await db(),history=[];d.exams.forEach(e=>(e.submissions||[]).filter(s=>s.userId===user.id).forEach(s=>history.push({examId:e.id,title:e.titleEn||e.title||'',titleEn:e.titleEn||e.title||'',titleAz:e.titleAz||'',submittedAt:s.submittedAt,answers:s.answers||{}})));history.sort((a,b)=>new Date(b.submittedAt)-new Date(a.submittedAt));return send(res,req,200,{history})}
-const examMatch=p.match(/^\/api\/exams\/([^/]+)$/);if(req.method==='GET'&&examMatch){const d=await db(),e=d.exams.find(x=>x.id===examMatch[1]);if(!e)return send(res,req,404,{error:'Exam not found'});return send(res,req,200,{exam:publicExam(e)})}
-const reg=p.match(/^\/api\/exams\/([^/]+)\/register$/);if(req.method==='POST'&&reg){const user=requireAuth(req,res);if(!user)return;const d=await db(),e=d.exams.find(x=>x.id===reg[1]);if(!e)return send(res,req,404,{error:'Exam not found'});e.registrations??=[];if(!e.registrations.some(r=>r.userId===user.id))e.registrations.push({userId:user.id,registeredAt:new Date().toISOString()});await save(d);return send(res,req,200,{ok:true})}
-const sub=p.match(/^\/api\/exams\/([^/]+)\/submit$/);if(req.method==='POST'&&sub){const user=requireAuth(req,res);if(!user)return;const d=await db(),e=d.exams.find(x=>x.id===sub[1]);if(!e)return send(res,req,404,{error:'Exam not found'});const x=await body(req);e.registrations??=[];if(!e.registrations.some(r=>r.userId===user.id))e.registrations.push({userId:user.id,registeredAt:new Date().toISOString()});e.submissions??=[];e.submissions=e.submissions.filter(s=>s.userId!==user.id);e.submissions.push({userId:user.id,userName:user.name,answers:x.answers||{},startedAt:x.startedAt||null,submittedAt:new Date().toISOString(),reason:x.reason||'manual'});await save(d);return send(res,req,200,{ok:true})}
-const ae=p.match(/^\/api\/admin\/exams(?:\/([^/]+))?$/);if(ae){if(!requireAuth(req,res,true))return;const d=await db(),itemId=ae[1];if(req.method==='GET')return send(res,req,200,{exams:d.exams});if(req.method==='POST'){const x=await body(req);const item={...x,id:id('exam'),titleEn:x.titleEn||x.title||'',titleAz:x.titleAz||'',descriptionEn:x.descriptionEn||x.description||'',descriptionAz:x.descriptionAz||'',durationMinutes:Number(x.durationMinutes||60),questions:Array.isArray(x.questions)?x.questions.map((q,i)=>({...q,id:q.id||id('q'),code:q.code||'Q'+(i+1),statementEn:q.statementEn||q.statement||q.text||'',statementAz:q.statementAz||'',imageUrl:q.imageUrl||q.image||''})):[],registrations:[],submissions:[],createdAt:new Date().toISOString()};d.exams.unshift(item);await save(d);return send(res,req,201,item)}if(req.method==='PUT'&&itemId){const i=d.exams.findIndex(v=>v.id===itemId);if(i<0)return send(res,req,404,{error:'Not found'});const x=await body(req),old=d.exams[i];d.exams[i]={...old,...x,id:itemId,titleEn:x.titleEn??old.titleEn??old.title??'',titleAz:x.titleAz??old.titleAz??'',descriptionEn:x.descriptionEn??old.descriptionEn??old.description??'',descriptionAz:x.descriptionAz??old.descriptionAz??'',durationMinutes:Number(x.durationMinutes||old.durationMinutes||60),questions:Array.isArray(x.questions)?x.questions.map((q,j)=>({...q,id:q.id||id('q'),code:q.code||'Q'+(j+1),statementEn:q.statementEn||q.statement||q.text||'',statementAz:q.statementAz||'',imageUrl:q.imageUrl||q.image||''})):old.questions||[],updatedAt:new Date().toISOString()};await save(d);return send(res,req,200,d.exams[i])}if(req.method==='DELETE'&&itemId){d.exams=d.exams.filter(v=>v.id!==itemId);await save(d);return send(res,req,200,{ok:true})}}
-const cm=p.match(/^\/api\/admin\/(problems|articles|contests)(?:\/([^/]+))?$/);if(cm){if(!requireAuth(req,res,true))return;const type=cm[1],itemId=cm[2],d=await db();if(req.method==='GET')return send(res,req,200,d[type]);if(req.method==='POST'){const x=await body(req);if(type==='contests')x.problems=Array.isArray(x.problems)?x.problems:[];const item={...x,id:id(type.slice(0,-1)),status:x.status||'published',createdAt:new Date().toISOString()};d[type].unshift(item);await save(d);return send(res,req,201,item)}if(req.method==='PUT'&&itemId){const i=d[type].findIndex(v=>v.id===itemId);if(i<0)return send(res,req,404,{error:'Not found'});const x=await body(req);d[type][i]={...d[type][i],...x,id:itemId,updatedAt:new Date().toISOString()};if(type==='contests')d[type][i].problems=Array.isArray(d[type][i].problems)?d[type][i].problems:[];await save(d);return send(res,req,200,d[type][i])}if(req.method==='DELETE'&&itemId){d[type]=d[type].filter(v=>v.id!==itemId);await save(d);return send(res,req,200,{ok:true})}}
-return send(res,req,404,{error:'Not found'})}
-function serve(req,res){let file=new URL(req.url,'http://localhost').pathname;if(file==='/')file='/index.html';file=path.normalize(file).replace(/^([.][.][/\\])+/, '');const full=path.join(PUBLIC,file);if(!full.startsWith(PUBLIC))return send(res,req,403,{error:'Forbidden'});fs.readFile(full,(e,data)=>{if(e)return send(res,req,404,'Not found','text/plain');const ext=path.extname(full),types={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'application/javascript; charset=utf-8','.json':'application/json'};send(res,req,200,data,types[ext]||'application/octet-stream',{'Cache-Control':'no-cache'})})}
-const server=http.createServer((req,res)=>{if(req.method==='OPTIONS'){cors(res,req);res.writeHead(204);res.end();return}if(req.url.startsWith('/api/'))api(req,res).catch(e=>{console.error(e);send(res,req,500,{error:'Server error'})});else serve(req,res)});
-const PORT=process.env.PORT||3000;server.listen(PORT,()=>console.log(`ABLE running at http://localhost:${PORT}`));
-(async()=>{const d=await db();if(!d.users.some(u=>u.role==='admin')){const email=process.env.ABLE_ADMIN_EMAIL||'admin@able.local',password=process.env.ABLE_ADMIN_PASSWORD||'ChangeMe123!';d.users.push({id:id('u'),name:'ABLE Admin',email,password:await hashPassword(password),role:'admin',createdAt:new Date().toISOString()});await save(d);console.log(`Admin created: ${email}`)}})();
+
+
+async function db(){
+  await dbReady;
+
+  if(pool){
+    const r=await pool.query(
+      'SELECT data FROM able_state WHERE id=1'
+    );
+
+    const d=
+      r.rows[0]?.data||
+      structuredClone(seed);
+
+    normalize(d);
+
+    return d;
+  }
+
+  const d=JSON.parse(
+    fs.readFileSync(DB_FILE,'utf8')
+  );
+
+  normalize(d);
+
+  return d;
+}
+
+
+/* =========================
+   NORMALIZE
+========================= */
+
+function normalize(d){
+
+  d.users??=[];
+  d.problems??=[];
+  d.articles??=[];
+  d.contests??=[];
+  d.exams??=[];
+  d.videos??=[];
+
+  d.contests.forEach(
+    c=>c.problems??=[]
+  );
+
+  d.exams.forEach(e=>{
+
+    e.questions??=[];
+    e.registrations??=[];
+    e.submissions??=[];
+
+    e.titleEn??=e.title??'';
+    e.titleAz??='';
+
+    e.descriptionEn??=
+      e.description??'';
+
+    e.descriptionAz??='';
+
+    e.questions.forEach(q=>{
+
+      q.statementEn??=
+        q.statement||
+        q.text||
+        '';
+
+      q.statementAz??='';
+
+      q.imageUrl??=
+        q.image||
+        '';
+    });
+  });
+
+  /* Existing videos from older data are
+     automatically made compatible */
+
+  d.videos.forEach(v=>{
+
+    v.title??=
+      v.titleEn||
+      v.titleAz||
+      '';
+
+    v.titleEn??=
+      v.title||
+      '';
+
+    v.titleAz??='';
+
+    v.description??=
+      v.descriptionEn||
+      v.descriptionAz||
+      '';
+
+    v.descriptionEn??=
+      v.description||
+      '';
+
+    v.descriptionAz??='';
+
+    v.thumbnail??=
+      v.thumbnailUrl||
+      v.image||
+      '';
+
+    v.youtubeUrl??=
+      v.youtube||
+      v.url||
+      '';
+
+    v.status??='published';
+
+  });
+
+  return d;
+}
+
+
+async function save(d){
+
+  if(pool){
+
+    await pool.query(
+      'UPDATE able_state SET data=$1 WHERE id=1',
+      [d]
+    );
+
+  }else{
+
+    fs.writeFileSync(
+      DB_FILE,
+      JSON.stringify(d,null,2)
+    );
+
+  }
+}
+
+
+/* =========================
+   PUBLIC EXAM
+========================= */
+
+function publicExam(e){
+
+  return {
+    id:e.id,
+
+    title:e.titleEn||e.title||'',
+
+    titleEn:
+      e.titleEn||
+      e.title||
+      '',
+
+    titleAz:
+      e.titleAz||
+      '',
+
+    description:
+      e.descriptionEn||
+      e.description||
+      '',
+
+    descriptionEn:
+      e.descriptionEn||
+      e.description||
+      '',
+
+    descriptionAz:
+      e.descriptionAz||
+      '',
+
+    date:e.date||'',
+
+    durationMinutes:
+      Number(e.durationMinutes||60),
+
+    status:
+      e.status||
+      'Upcoming',
+
+    questions:
+      (e.questions||[]).map((q,i)=>({
+
+        id:
+          q.id||
+          'q_'+i,
+
+        code:
+          q.code||
+          'Q'+(i+1),
+
+        statement:
+          q.statementEn||
+          q.statement||
+          q.text||
+          '',
+
+        statementEn:
+          q.statementEn||
+          q.statement||
+          q.text||
+          '',
+
+        statementAz:
+          q.statementAz||
+          '',
+
+        imageUrl:
+          q.imageUrl||
+          q.image||
+          ''
+
+      }))
+  };
+}
+
+
+/* =========================
+   PUBLIC VIDEO
+========================= */
+
+function publicVideo(v){
+
+  return {
+    id:v.id,
+
+    title:
+      v.titleEn||
+      v.title||
+      '',
+
+    titleEn:
+      v.titleEn||
+      v.title||
+      '',
+
+    titleAz:
+      v.titleAz||
+      '',
+
+    description:
+      v.descriptionEn||
+      v.description||
+      '',
+
+    descriptionEn:
+      v.descriptionEn||
+      v.description||
+      '',
+
+    descriptionAz:
+      v.descriptionAz||
+      '',
+
+    thumbnail:
+      v.thumbnail||
+      '',
+
+    youtubeUrl:
+      v.youtubeUrl||
+      '',
+
+    status:
+      v.status||
+      'published',
+
+    createdAt:
+      v.createdAt||
+      ''
+  };
+}
+
+
+/* =========================
+   API
+========================= */
+
+async function api(req,res){
+
+  const u=new URL(
+    req.url,
+    'http://localhost'
+  );
+
+  const p=u.pathname;
+
+
+  /* =========================
+     PUBLIC CONTENT
+  ========================= */
+
+  if(
+    req.method==='GET'&&
+    p==='/api/content'
+  ){
+
+    const d=await db();
+
+    return send(
+      res,
+      req,
+      200,
+      {
+        problems:d.problems,
+        articles:d.articles,
+        contests:d.contests,
+
+        videos:
+          d.videos
+            .filter(v=>v.status!=='draft')
+            .map(publicVideo)
+      }
+    );
+  }
+
+
+  /* =========================
+     CURRENT USER
+  ========================= */
+
+  if(
+    req.method==='GET'&&
+    p==='/api/me'
+  ){
+
+    const user=currentUser(req);
+
+    return send(
+      res,
+      req,
+      200,
+      {
+        user:
+          user
+            ?safeUser(user)
+            :null
+      }
+    );
+  }
+
+
+  /* =========================
+     SIGNUP
+  ========================= */
+
+  if(
+    req.method==='POST'&&
+    p==='/api/signup'
+  ){
+
+    try{
+
+      const x=await body(req);
+
+      if(
+        !x.name||
+        !x.email||
+        !x.password||
+        String(x.password).length<8
+      ){
+
+        return send(
+          res,
+          req,
+          400,
+          {
+            error:
+              'Name, email and a password of at least 8 characters are required.'
+          }
+        );
+      }
+
+      const d=await db();
+
+      if(
+        d.users.some(
+          v=>
+            v.email.toLowerCase()===
+            String(x.email).toLowerCase()
+        )
+      ){
+
+        return send(
+          res,
+          req,
+          409,
+          {
+            error:
+              'An account with this email already exists.'
+          }
+        );
+      }
+
+      const user={
+        id:id('u'),
+
+        name:
+          String(x.name)
+            .trim()
+            .slice(0,80),
+
+        email:
+          String(x.email)
+            .trim()
+            .toLowerCase(),
+
+        password:
+          await hashPassword(x.password),
+
+        role:'user',
+
+        createdAt:
+          new Date().toISOString()
+      };
+
+      d.users.push(user);
+
+      await save(d);
+
+      const sid=
+        crypto.randomBytes(32)
+          .toString('hex');
+
+      sessions.set(
+        sid,
+        safeUser(user)
+      );
+
+      return send(
+        res,
+        req,
+        201,
+        {
+          user:safeUser(user)
+        },
+        'application/json',
+        {
+          'Set-Cookie':
+            `able_session=${sid}; HttpOnly; Path=/; SameSite=None; Secure; Max-Age=604800`
+        }
+      );
+
+    }catch(e){
+
+      console.error(e);
+
+      return send(
+        res,
+        req,
+        500,
+        {
+          error:
+            'Could not create account.'
+        }
+      );
+    }
+  }
+
+
+  /* =========================
+     LOGIN
+  ========================= */
+
+  if(
+    req.method==='POST'&&
+    p==='/api/login'
+  ){
+
+    try{
+
+      const x=await body(req);
+      const d=await db();
+
+      const user=d.users.find(
+        v=>
+          v.email.toLowerCase()===
+          String(x.email||'').toLowerCase()
+      );
+
+      if(
+        !user||
+        !(await verifyPassword(
+          x.password||'',
+          user.password
+        ))
+      ){
+
+        return send(
+          res,
+          req,
+          401,
+          {
+            error:
+              'Invalid email or password.'
+          }
+        );
+      }
+
+      const sid=
+        crypto.randomBytes(32)
+          .toString('hex');
+
+      sessions.set(
+        sid,
+        safeUser(user)
+      );
+
+      return send(
+        res,
+        req,
+        200,
+        {
+          user:safeUser(user)
+        },
+        'application/json',
+        {
+          'Set-Cookie':
+            `able_session=${sid}; HttpOnly; Path=/; SameSite=None; Secure; Max-Age=604800`
+        }
+      );
+
+    }catch(e){
+
+      console.error(e);
+
+      return send(
+        res,
+        req,
+        500,
+        {
+          error:
+            'Login failed.'
+        }
+      );
+    }
+  }
+
+
+  /* =========================
+     CHANGE PASSWORD
+  ========================= */
+
+  if(
+    req.method==='POST'&&
+    p==='/api/change-password'
+  ){
+
+    try{
+
+      const x=await body(req);
+
+      const email=
+        String(x.email||'')
+          .trim()
+          .toLowerCase();
+
+      const currentPassword=
+        String(
+          x.currentPassword||
+          ''
+        );
+
+      const newPassword=
+        String(
+          x.newPassword||
+          ''
+        );
+
+      if(
+        !email||
+        !currentPassword||
+        newPassword.length<8
+      ){
+
+        return send(
+          res,
+          req,
+          400,
+          {
+            error:
+              'Email, current password and a new password of at least 8 characters are required.'
+          }
+        );
+      }
+
+      const d=await db();
+
+      const user=d.users.find(
+        v=>
+          v.email.toLowerCase()===
+          email
+      );
+
+      if(
+        !user||
+        !(await verifyPassword(
+          currentPassword,
+          user.password
+        ))
+      ){
+
+        return send(
+          res,
+          req,
+          401,
+          {
+            error:
+              'Email or current password is incorrect.'
+          }
+        );
+      }
+
+      user.password=
+        await hashPassword(
+          newPassword
+        );
+
+      await save(d);
+
+      return send(
+        res,
+        req,
+        200,
+        {ok:true}
+      );
+
+    }catch(e){
+
+      console.error(e);
+
+      return send(
+        res,
+        req,
+        500,
+        {
+          error:
+            'Could not change password.'
+        }
+      );
+    }
+  }
+
+
+  /* =========================
+     LOGOUT
+  ========================= */
+
+  if(
+    req.method==='POST'&&
+    p==='/api/logout'
+  ){
+
+    sessions.delete(
+      cookies(req).able_session
+    );
+
+    return send(
+      res,
+      req,
+      200,
+      {ok:true},
+      'application/json',
+      {
+        'Set-Cookie':
+          'able_session=; HttpOnly; Path=/; Max-Age=0; SameSite=None; Secure'
+      }
+    );
+  }
+
+
+  /* =========================
+     ADMIN USERS
+  ========================= */
+
+  if(
+    req.method==='GET'&&
+    p==='/api/admin/users'
+  ){
+
+    if(!requireAuth(req,res,true))
+      return;
+
+    const d=await db();
+
+    return send(
+      res,
+      req,
+      200,
+      {
+        users:
+          d.users.map(safeUser)
+      }
+    );
+  }
+
+
+  /* =========================
+     PUBLIC EXAMS
+  ========================= */
+
+  if(
+    req.method==='GET'&&
+    p==='/api/exams'
+  ){
+
+    const d=await db();
+
+    return send(
+      res,
+      req,
+      200,
+      {
+        exams:
+          d.exams.map(publicExam)
+      }
+    );
+  }
+
+
+  if(
+    req.method==='GET'&&
+    p==='/api/exams/history'
+  ){
+
+    const user=
+      requireAuth(req,res);
+
+    if(!user)return;
+
+    const d=await db(),
+      history=[];
+
+    d.exams.forEach(
+      e=>
+        (e.submissions||[])
+          .filter(
+            s=>s.userId===user.id
+          )
+          .forEach(
+            s=>
+              history.push({
+                examId:e.id,
+
+                title:
+                  e.titleEn||
+                  e.title||
+                  '',
+
+                titleEn:
+                  e.titleEn||
+                  e.title||
+                  '',
+
+                titleAz:
+                  e.titleAz||
+                  '',
+
+                submittedAt:
+                  s.submittedAt,
+
+                answers:
+                  s.answers||
+                  {}
+              })
+          )
+    );
+
+    history.sort(
+      (a,b)=>
+        new Date(b.submittedAt)-
+        new Date(a.submittedAt)
+    );
+
+    return send(
+      res,
+      req,
+      200,
+      {history}
+    );
+  }
+
+
+  const examMatch=
+    p.match(
+      /^\/api\/exams\/([^/]+)$/
+    );
+
+  if(
+    req.method==='GET'&&
+    examMatch
+  ){
+
+    const d=await db();
+
+    const e=d.exams.find(
+      x=>x.id===examMatch[1]
+    );
+
+    if(!e){
+
+      return send(
+        res,
+        req,
+        404,
+        {
+          error:
+            'Exam not found'
+        }
+      );
+    }
+
+    return send(
+      res,
+      req,
+      200,
+      {
+        exam:
+          publicExam(e)
+      }
+    );
+  }
+
+
+  /* =========================
+     EXAM REGISTER
+  ========================= */
+
+  const reg=
+    p.match(
+      /^\/api\/exams\/([^/]+)\/register$/
+    );
+
+  if(
+    req.method==='POST'&&
+    reg
+  ){
+
+    const user=
+      requireAuth(req,res);
+
+    if(!user)return;
+
+    const d=await db();
+
+    const e=d.exams.find(
+      x=>x.id===reg[1]
+    );
+
+    if(!e){
+
+      return send(
+        res,
+        req,
+        404,
+        {
+          error:
+            'Exam not found'
+        }
+      );
+    }
+
+    e.registrations??=[];
+
+    if(
+      !e.registrations.some(
+        r=>r.userId===user.id
+      )
+    ){
+
+      e.registrations.push({
+        userId:user.id,
+        registeredAt:
+          new Date().toISOString()
+      });
+    }
+
+    await save(d);
+
+    return send(
+      res,
+      req,
+      200,
+      {ok:true}
+    );
+  }
+
+
+  /* =========================
+     EXAM SUBMIT
+  ========================= */
+
+  const sub=
+    p.match(
+      /^\/api\/exams\/([^/]+)\/submit$/
+    );
+
+  if(
+    req.method==='POST'&&
+    sub
+  ){
+
+    const user=
+      requireAuth(req,res);
+
+    if(!user)return;
+
+    const d=await db();
+
+    const e=d.exams.find(
+      x=>x.id===sub[1]
+    );
+
+    if(!e){
+
+      return send(
+        res,
+        req,
+        404,
+        {
+          error:
+            'Exam not found'
+        }
+      );
+    }
+
+    const x=await body(req);
+
+    e.registrations??=[];
+
+    if(
+      !e.registrations.some(
+        r=>r.userId===user.id
+      )
+    ){
+
+      e.registrations.push({
+        userId:user.id,
+        registeredAt:
+          new Date().toISOString()
+      });
+    }
+
+    e.submissions??=[];
+
+    e.submissions=
+      e.submissions.filter(
+        s=>s.userId!==user.id
+      );
+
+    e.submissions.push({
+
+      userId:user.id,
+
+      userName:user.name,
+
+      answers:
+        x.answers||
+        {},
+
+      startedAt:
+        x.startedAt||
+        null,
+
+      submittedAt:
+        new Date().toISOString(),
+
+      reason:
+        x.reason||
+        'manual'
+
+    });
+
+    await save(d);
+
+    return send(
+      res,
+      req,
+      200,
+      {ok:true}
+    );
+  }
+
+
+  /* =========================
+     ADMIN EXAMS
+  ========================= */
+
+  const ae=
+    p.match(
+      /^\/api\/admin\/exams(?:\/([^/]+))?$/
+    );
+
+  if(ae){
+
+    if(!requireAuth(req,res,true))
+      return;
+
+    const d=await db(),
+      itemId=ae[1];
+
+    if(req.method==='GET'){
+
+      return send(
+        res,
+        req,
+        200,
+        {
+          exams:d.exams
+        }
+      );
+    }
+
+    if(req.method==='POST'){
+
+      const x=await body(req);
+
+      const item={
+        ...x,
+
+        id:id('exam'),
+
+        titleEn:
+          x.titleEn||
+          x.title||
+          '',
+
+        titleAz:
+          x.titleAz||
+          '',
+
+        descriptionEn:
+          x.descriptionEn||
+          x.description||
+          '',
+
+        descriptionAz:
+          x.descriptionAz||
+          '',
+
+        durationMinutes:
+          Number(
+            x.durationMinutes||
+            60
+          ),
+
+        questions:
+          Array.isArray(x.questions)
+            ?x.questions.map(
+              (q,i)=>({
+                ...q,
+
+                id:
+                  q.id||
+                  id('q'),
+
+                code:
+                  q.code||
+                  'Q'+(i+1),
+
+                statementEn:
+                  q.statementEn||
+                  q.statement||
+                  q.text||
+                  '',
+
+                statementAz:
+                  q.statementAz||
+                  '',
+
+                imageUrl:
+                  q.imageUrl||
+                  q.image||
+                  ''
+              })
+            )
+            :[],
+
+        registrations:[],
+        submissions:[],
+
+        createdAt:
+          new Date().toISOString()
+      };
+
+      d.exams.unshift(item);
+
+      await save(d);
+
+      return send(
+        res,
+        req,
+        201,
+        item
+      );
+    }
+
+    if(
+      req.method==='PUT'&&
+      itemId
+    ){
+
+      const i=d.exams.findIndex(
+        v=>v.id===itemId
+      );
+
+      if(i<0){
+
+        return send(
+          res,
+          req,
+          404,
+          {error:'Not found'}
+        );
+      }
+
+      const x=await body(req),
+        old=d.exams[i];
+
+      d.exams[i]={
+        ...old,
+        ...x,
+
+        id:itemId,
+
+        titleEn:
+          x.titleEn??
+          old.titleEn??
+          old.title??
+          '',
+
+        titleAz:
+          x.titleAz??
+          old.titleAz??
+          '',
+
+        descriptionEn:
+          x.descriptionEn??
+          old.descriptionEn??
+          old.description??
+          '',
+
+        descriptionAz:
+          x.descriptionAz??
+          old.descriptionAz??
+          '',
+
+        durationMinutes:
+          Number(
+            x.durationMinutes||
+            old.durationMinutes||
+            60
+          ),
+
+        questions:
+          Array.isArray(x.questions)
+            ?x.questions.map(
+              (q,j)=>({
+                ...q,
+
+                id:
+                  q.id||
+                  id('q'),
+
+                code:
+                  q.code||
+                  'Q'+(j+1),
+
+                statementEn:
+                  q.statementEn||
+                  q.statement||
+                  q.text||
+                  '',
+
+                statementAz:
+                  q.statementAz||
+                  '',
+
+                imageUrl:
+                  q.imageUrl||
+                  q.image||
+                  ''
+              })
+            )
+            :old.questions||[],
+
+        updatedAt:
+          new Date().toISOString()
+      };
+
+      await save(d);
+
+      return send(
+        res,
+        req,
+        200,
+        d.exams[i]
+      );
+    }
+
+    if(
+      req.method==='DELETE'&&
+      itemId
+    ){
+
+      d.exams=
+        d.exams.filter(
+          v=>v.id!==itemId
+        );
+
+      await save(d);
+
+      return send(
+        res,
+        req,
+        200,
+        {ok:true}
+      );
+    }
+  }
+
+
+  /* =========================
+     ADMIN VIDEOS
+  ========================= */
+
+  const vm=
+    p.match(
+      /^\/api\/admin\/videos(?:\/([^/]+))?$/
+    );
+
+  if(vm){
+
+    if(!requireAuth(req,res,true))
+      return;
+
+    const d=await db(),
+      itemId=vm[1];
+
+
+    /* GET ALL VIDEOS */
+
+    if(req.method==='GET'){
+
+      return send(
+        res,
+        req,
+        200,
+        {
+          videos:d.videos
+        }
+      );
+    }
+
+
+    /* CREATE VIDEO */
+
+    if(req.method==='POST'){
+
+      const x=await body(req);
+
+      if(
+        !x.youtubeUrl
+      ){
+
+        return send(
+          res,
+          req,
+          400,
+          {
+            error:
+              'YouTube URL is required.'
+          }
+        );
+      }
+
+      const item={
+
+        id:id('video'),
+
+        title:
+          x.title||
+          x.titleEn||
+          x.titleAz||
+          '',
+
+        titleEn:
+          x.titleEn||
+          x.title||
+          '',
+
+        titleAz:
+          x.titleAz||
+          '',
+
+        description:
+          x.description||
+          x.descriptionEn||
+          x.descriptionAz||
+          '',
+
+        descriptionEn:
+          x.descriptionEn||
+          x.description||
+          '',
+
+        descriptionAz:
+          x.descriptionAz||
+          x.description||
+          '',
+
+        thumbnail:
+          x.thumbnail||
+          x.thumbnailUrl||
+          x.image||
+          '',
+
+        youtubeUrl:
+          x.youtubeUrl||
+          x.youtube||
+          x.url||
+          '',
+
+        status:
+          x.status||
+          'published',
+
+        createdAt:
+          new Date().toISOString()
+      };
+
+      d.videos.unshift(item);
+
+      await save(d);
+
+      return send(
+        res,
+        req,
+        201,
+        item
+      );
+    }
+
+
+    /* UPDATE VIDEO */
+
+    if(
+      req.method==='PUT'&&
+      itemId
+    ){
+
+      const i=d.videos.findIndex(
+        v=>v.id===itemId
+      );
+
+      if(i<0){
+
+        return send(
+          res,
+          req,
+          404,
+          {
+            error:
+              'Video not found'
+          }
+        );
+      }
+
+      const x=await body(req);
+
+      d.videos[i]={
+        ...d.videos[i],
+        ...x,
+
+        id:itemId,
+
+        title:
+          x.title||
+          x.titleEn||
+          d.videos[i].title||
+          '',
+
+        titleEn:
+          x.titleEn||
+          x.title||
+          d.videos[i].titleEn||
+          '',
+
+        titleAz:
+          x.titleAz??
+          d.videos[i].titleAz||
+          '',
+
+        thumbnail:
+          x.thumbnail||
+          x.thumbnailUrl||
+          x.image||
+          d.videos[i].thumbnail||
+          '',
+
+        youtubeUrl:
+          x.youtubeUrl||
+          x.youtube||
+          x.url||
+          d.videos[i].youtubeUrl||
+          '',
+
+        status:
+          x.status||
+          d.videos[i].status||
+          'published',
+
+        updatedAt:
+          new Date().toISOString()
+      };
+
+      await save(d);
+
+      return send(
+        res,
+        req,
+        200,
+        d.videos[i]
+      );
+    }
+
+
+    /* DELETE VIDEO */
+
+    if(
+      req.method==='DELETE'&&
+      itemId
+    ){
+
+      d.videos=
+        d.videos.filter(
+          v=>v.id!==itemId
+        );
+
+      await save(d);
+
+      return send(
+        res,
+        req,
+        200,
+        {ok:true}
+      );
+    }
+  }
+
+
+  /* =========================
+     ADMIN PROBLEMS ARTICLES CONTESTS
+  ========================= */
+
+  const cm=
+    p.match(
+      /^\/api\/admin\/(problems|articles|contests)(?:\/([^/]+))?$/
+    );
+
+  if(cm){
+
+    if(!requireAuth(req,res,true))
+      return;
+
+    const type=cm[1],
+      itemId=cm[2],
+      d=await db();
+
+
+    if(req.method==='GET'){
+
+      return send(
+        res,
+        req,
+        200,
+        d[type]
+      );
+    }
+
+
+    if(req.method==='POST'){
+
+      const x=await body(req);
+
+      if(type==='contests'){
+
+        x.problems=
+          Array.isArray(x.problems)
+            ?x.problems
+            :[];
+      }
+
+      const item={
+        ...x,
+
+        id:
+          id(
+            type.slice(0,-1)
+          ),
+
+        status:
+          x.status||
+          'published',
+
+        createdAt:
+          new Date().toISOString()
+      };
+
+      d[type].unshift(item);
+
+      await save(d);
+
+      return send(
+        res,
+        req,
+        201,
+        item
+      );
+    }
+
+
+    if(
+      req.method==='PUT'&&
+      itemId
+    ){
+
+      const i=d[type].findIndex(
+        v=>v.id===itemId
+      );
+
+      if(i<0){
+
+        return send(
+          res,
+          req,
+          404,
+          {error:'Not found'}
+        );
+      }
+
+      const x=await body(req);
+
+      d[type][i]={
+        ...d[type][i],
+        ...x,
+
+        id:itemId,
+
+        updatedAt:
+          new Date().toISOString()
+      };
+
+      if(type==='contests'){
+
+        d[type][i].problems=
+          Array.isArray(
+            d[type][i].problems
+          )
+            ?d[type][i].problems
+            :[];
+      }
+
+      await save(d);
+
+      return send(
+        res,
+        req,
+        200,
+        d[type][i]
+      );
+    }
+
+
+    if(
+      req.method==='DELETE'&&
+      itemId
+    ){
+
+      d[type]=
+        d[type].filter(
+          v=>v.id!==itemId
+        );
+
+      await save(d);
+
+      return send(
+        res,
+        req,
+        200,
+        {ok:true}
+      );
+    }
+  }
+
+
+  return send(
+    res,
+    req,
+    404,
+    {
+      error:
+        'Not found'
+    }
+  );
+}
+
+
+/* =========================
+   STATIC FILE SERVER
+========================= */
+
+function serve(req,res){
+
+  let file=
+    new URL(
+      req.url,
+      'http://localhost'
+    ).pathname;
+
+  if(file==='/')
+    file='/index.html';
+
+  file=
+    path
+      .normalize(file)
+      .replace(
+        /^([.][.][/\\])+/,
+        ''
+      );
+
+  const full=
+    path.join(
+      PUBLIC,
+      file
+    );
+
+  if(!full.startsWith(PUBLIC))
+    return send(
+      res,
+      req,
+      403,
+      {error:'Forbidden'}
+    );
+
+  fs.readFile(
+    full,
+    (e,data)=>{
+
+      if(e)
+        return send(
+          res,
+          req,
+          404,
+          'Not found',
+          'text/plain'
+        );
+
+      const ext=
+        path.extname(full);
+
+      const types={
+        '.html':
+          'text/html; charset=utf-8',
+
+        '.css':
+          'text/css; charset=utf-8',
+
+        '.js':
+          'application/javascript; charset=utf-8',
+
+        '.json':
+          'application/json'
+      };
+
+      send(
+        res,
+        req,
+        200,
+        data,
+        types[ext]||
+          'application/octet-stream',
+        {
+          'Cache-Control':
+            'no-cache'
+        }
+      );
+    }
+  );
+}
+
+
+/* =========================
+   SERVER
+========================= */
+
+const server=
+  http.createServer(
+    (req,res)=>{
+
+      if(req.method==='OPTIONS'){
+
+        cors(res,req);
+
+        res.writeHead(204);
+
+        res.end();
+
+        return;
+      }
+
+      if(
+        req.url.startsWith('/api/')
+      ){
+
+        api(req,res)
+          .catch(e=>{
+
+            console.error(e);
+
+            send(
+              res,
+              req,
+              500,
+              {
+                error:
+                  'Server error'
+              }
+            );
+          });
+
+      }else{
+
+        serve(req,res);
+
+      }
+    }
+  );
+
+
+const PORT=
+  process.env.PORT||
+  3000;
+
+server.listen(
+  PORT,
+  ()=>console.log(
+    `ABLE running at http://localhost:${PORT}`
+  )
+);
+
+
+/* =========================
+   ADMIN CREATION
+========================= */
+
+(async()=>{
+
+  const d=await db();
+
+  if(
+    !d.users.some(
+      u=>u.role==='admin'
+    )
+  ){
+
+    const email=
+      process.env.ABLE_ADMIN_EMAIL||
+      'admin@able.local';
+
+    const password=
+      process.env.ABLE_ADMIN_PASSWORD||
+      'ChangeMe123!';
+
+    d.users.push({
+
+      id:id('u'),
+
+      name:'ABLE Admin',
+
+      email,
+
+      password:
+        await hashPassword(
+          password
+        ),
+
+      role:'admin',
+
+      createdAt:
+        new Date().toISOString()
+    });
+
+    await save(d);
+
+    console.log(
+      `Admin created: ${email}`
+    );
+  }
+
+})();
