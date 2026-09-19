@@ -84,6 +84,7 @@ async function fb(){
 }
 async function api(path, opts = {}) {
   const {db,auth}=await fb();
+  await authReady();
   const fs=await import('https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js');
   const {collection,doc,getDoc,getDocs,setDoc,addDoc,updateDoc,deleteDoc}=fs;
   const method=(opts.method||'GET').toUpperCase();
