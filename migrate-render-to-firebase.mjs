@@ -6,7 +6,7 @@ import { stdin as input, stdout as output } from 'node:process';
 
 const RENDER = 'https://able-n6du.onrender.com';
 const PROJECT = 'able-2ca24';
-const API_KEY = 'AIzaSyAjEd4pN33wpoJlT2rsAgDFMO3A4Uh-M4s';
+const API_KEY = process.env.FIREBASE_API_KEY || '';
 
 const rl = readline.createInterface({ input, output });
 const ask = q => rl.question(q);
