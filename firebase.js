@@ -16,6 +16,13 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const analytics = getAnalytics(app);
+let analytics = null;
+try {
+  if (typeof window !== 'undefined' && !window.location.hostname.includes('localhost')) {
+    analytics = getAnalytics(app);
+  }
+} catch (e) {
+  console.warn('Firebase Analytics unavailable:', e);
+}
 
 export { app, auth, db, analytics };
