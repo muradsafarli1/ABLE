@@ -1,5 +1,3 @@
-const API_BASE = 'https://able-n6du.onrender.com';
-
 (function initTheme(){
   const saved = localStorage.getItem('able_theme');
   document.documentElement.dataset.theme = saved === 'light' ? 'light' : 'dark';
@@ -79,13 +77,75 @@ const API_BASE = 'https://able-n6du.onrender.com';
   document.head.appendChild(style);
 })();
 
+let __fb=null;
+async function fb(){
+  if(!__fb) __fb=await import('/firebase.js');
+  return __fb;
+}
 async function api(path, opts = {}) {
-  const url = path.startsWith('http') ? path : `${API_BASE}${path}`;
-  const r = await fetch(url, { credentials:'include', headers:{'Content-Type':'application/json', ...(opts.headers||{})}, ...opts });
-  let d = {};
-  try { d = await r.json(); } catch {}
-  if (!r.ok) throw new Error(d.error || `Request failed (${r.status})`);
-  return d;
+  const {db,auth}=await fb();
+  const fs=await import('https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js');
+  const {collection,doc,getDoc,getDocs,setDoc,addDoc,updateDoc,deleteDoc}=fs;
+  const method=(opts.method||'GET').toUpperCase();
+  let body={};
+  try{body=opts.body?JSON.parse(opts.body):{}}catch{}
+  const uid=auth.currentUser?.uid||null;
+  const userDoc=uid?await getDoc(doc(db,'users',uid)):null;
+  const user=userDoc?.exists()?{id:uid,...userDoc.data()}:null;
+  if(path==='/api/me') return {user:user?{id:user.id,name:user.name,email:user.email,role:user.role||'user',createdAt:user.createdAt}:null};
+  if(path==='/api/logout'){await (await import('https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js')).signOut(auth);return {ok:true};}
+  if(path==='/api/content'){
+    const out={};
+    for(const type of ['problems','articles','contests','videos']){
+      const snap=await getDocs(collection(db,type));
+      out[type]=snap.docs.map(x=>({id:x.id,...x.data()})).filter(x=>type!=='videos'||x.status!=='draft');
+    }
+    return out;
+  }
+  if(path==='/api/exams'){
+    const snap=await getDocs(collection(db,'exams'));
+    return {exams:snap.docs.map(x=>({id:x.id,...x.data()})).map(publicExam)};
+  }
+  if(path==='/api/exams/history'){
+    if(!user) throw new Error('Authentication required');
+    const snap=await getDocs(collection(db,'exams')),history=[];
+    snap.docs.forEach(x=>(x.data().submissions||[]).filter(s=>s.userId===uid).forEach(s=>history.push({examId:x.id,title:x.data().titleEn||x.data().title||'',titleEn:x.data().titleEn||x.data().title||'',titleAz:x.data().titleAz||'',submittedAt:s.submittedAt,answers:s.answers||{}})));
+    history.sort((a,b)=>new Date(b.submittedAt)-new Date(a.submittedAt)); return {history};
+  }
+  const em=path.match(/^\/api\/exams\/([^/]+)$/);
+  if(em&&method==='GET'){const s=await getDoc(doc(db,'exams',em[1]));if(!s.exists())throw new Error('Exam not found');return {exam:publicExam({id:s.id,...s.data()})};}
+  const er=path.match(/^\/api\/exams\/([^/]+)\/(register|submit)$/);
+  if(er&&method==='POST'){
+    if(!user) throw new Error('Authentication required');
+    const ref=doc(db,'exams',er[1]),s=await getDoc(ref);if(!s.exists())throw new Error('Exam not found');
+    const e=s.data(), regs=e.registrations||[];
+    if(!regs.some(r=>r.userId===uid)) regs.push({userId:uid,registeredAt:new Date().toISOString()});
+    if(er[2]==='register'){await updateDoc(ref,{registrations:regs});return {ok:true};}
+    const subs=(e.submissions||[]).filter(x=>x.userId!==uid);
+    subs.push({userId:uid,userName:user.name,answers:body.answers||{},startedAt:body.startedAt||null,submittedAt:new Date().toISOString(),reason:body.reason||'manual'});
+    await updateDoc(ref,{registrations:regs,submissions:subs});return {ok:true};
+  }
+  const am=path.match(/^\/api\/admin\/(problems|articles|contests|videos|exams)(?:\/([^/]+))?$/);
+  if(am){
+    if(!user||user.role!=='admin') throw new Error('Admin access required');
+    const type=am[1],id=am[2],ref=id?doc(db,type,id):null;
+    if(method==='GET'){
+      if(type==='users') return {users:[]};
+      const snap=await getDocs(collection(db,type)); return type==='exams'?{exams:snap.docs.map(x=>({id:x.id,...x.data()}))}:type==='videos'?{videos:snap.docs.map(x=>({id:x.id,...x.data()}))}:snap.docs.map(x=>({id:x.id,...x.data()}));
+    }
+    if(method==='POST'){
+      const item={...body,id:crypto.randomUUID(),createdAt:new Date().toISOString()};
+      if(type==='exams'){item.questions=(Array.isArray(item.questions)?item.questions:[]).map((q,i)=>({...q,id:q.id||crypto.randomUUID(),code:q.code||'Q'+(i+1)}));item.registrations=[];item.submissions=[];await setDoc(doc(db,type,item.id),item);return item;}
+      await setDoc(doc(db,type,item.id),item);return item;
+    }
+    if(method==='PUT'){await updateDoc(ref,{...body,id,updatedAt:new Date().toISOString()});const s=await getDoc(ref);return {id:s.id,...s.data()};}
+    if(method==='DELETE'){await deleteDoc(ref);return {ok:true};}
+  }
+  if(path==='/api/admin/users'&&method==='GET'){
+    if(!user||user.role!=='admin') throw new Error('Admin access required');
+    const snap=await getDocs(collection(db,'users'));return {users:snap.docs.map(x=>({id:x.id,...x.data()}))};
+  }
+  throw new Error('Not found');
 }
 function toggleTheme(){const next=document.documentElement.dataset.theme==='light'?'dark':'light';document.documentElement.dataset.theme=next;localStorage.setItem('able_theme',next);const b=document.getElementById('theme-toggle');if(b){b.textContent=next==='light'?'☾':'☀';b.title=next==='light'?'Switch to dark mode':'Switch to light mode'}}
 function toast(msg){let t=document.getElementById('toast');if(!t){t=document.createElement('div');t.id='toast';t.className='toast';document.body.appendChild(t)}t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600)}
