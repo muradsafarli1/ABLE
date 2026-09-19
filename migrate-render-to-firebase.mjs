@@ -22,7 +22,12 @@ const json = async (url, options={}) => {
 
 function fv(v) {
   if (v === null) return { nullValue: null };
-  if (typeof v === 'string') return { stringValue: v };
+  // Firestore rejects a single field larger than ~1 MiB. Some legacy video
+  // thumbnails are embedded as very large base64/data-URL strings.
+  if (typeof v === 'string') {
+    if (Buffer.byteLength(v, 'utf8') > 900000) return { nullValue: null };
+    return { stringValue: v };
+  }
   if (typeof v === 'boolean') return { booleanValue: v };
   if (typeof v === 'number') return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
   if (Array.isArray(v)) return { arrayValue: { values: v.map(fv) } };
