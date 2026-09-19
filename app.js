@@ -78,9 +78,19 @@
 })();
 
 let __fb=null;
+let __authReady=null;
 async function fb(){
-  if(!__fb) __fb=await import('/firebase.js');
+  if(!__fb){
+    __fb=await import('/firebase.js');
+    __authReady=new Promise(resolve=>{
+      const off=__fb.auth.onAuthStateChanged(user=>{off();resolve(user);});
+    });
+  }
   return __fb;
+}
+async function authReady(){
+  await fb();
+  return __authReady;
 }
 async function api(path, opts = {}) {
   const {db,auth}=await fb();
