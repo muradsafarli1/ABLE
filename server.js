@@ -675,6 +675,32 @@ async function api(req,res){
 
 
   /* =========================
+     ONE-TIME MIGRATION EXPORT
+  ========================= */
+
+  if(
+    req.method==='GET'&&
+    p==='/api/migration/export'
+  ){
+    const key=process.env.MIGRATION_KEY||'';
+    if(!key || req.headers['x-migration-key']!==key){
+      return send(res,req,401,{error:'Migration access denied'});
+    }
+    const d=await db();
+    return send(res,req,200,{
+      users:(d.users||[]).map(u=>{
+        const {password,...safe}=u;
+        return safe;
+      }),
+      problems:d.problems||[],
+      articles:d.articles||[],
+      contests:d.contests||[],
+      exams:d.exams||[],
+      videos:d.videos||[]
+    });
+  }
+
+  /* =========================
      PUBLIC CONTENT
   ========================= */
 
