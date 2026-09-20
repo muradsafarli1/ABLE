@@ -110,6 +110,10 @@ async function api(path, opts = {}) {
     return {user:user?{id:user.id,name:user.name,email:user.email,role:user.role||'user',createdAt:user.createdAt}:null};
   }
   if(path==='/api/logout'){await (await import('https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js')).signOut(auth);return {ok:true};}
+  if(uid && (path.startsWith('/api/exams/history') || path.match(/^\/api\/exams\/[^/]+\/(register|submit)$/) || path.startsWith('/api/admin/'))){
+    const userDoc=await getDoc(doc(db,'users',uid));
+    if(userDoc.exists()) user={id:uid,...userDoc.data()};
+  }
   if(path==='/api/content'){
     const out={};
     for(const type of ['problems','articles','contests','videos']){
