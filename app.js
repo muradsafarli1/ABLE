@@ -101,9 +101,14 @@ async function api(path, opts = {}) {
   let body={};
   try{body=opts.body?JSON.parse(opts.body):{}}catch{}
   const uid=auth.currentUser?.uid||null;
-  const userDoc=uid?await getDoc(doc(db,'users',uid)):null;
-  const user=userDoc?.exists()?{id:uid,...userDoc.data()}:null;
-  if(path==='/api/me') return {user:user?{id:user.id,name:user.name,email:user.email,role:user.role||'user',createdAt:user.createdAt}:null};
+  let user=null;
+  if(path==='/api/me'){
+    if(uid){
+      const userDoc=await getDoc(doc(db,'users',uid));
+      if(userDoc.exists()) user={id:uid,...userDoc.data()};
+    }
+    return {user:user?{id:user.id,name:user.name,email:user.email,role:user.role||'user',createdAt:user.createdAt}:null};
+  }
   if(path==='/api/logout'){await (await import('https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js')).signOut(auth);return {ok:true};}
   if(path==='/api/content'){
     const out={};
