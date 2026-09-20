@@ -117,8 +117,10 @@ async function api(path, opts = {}) {
   if(path==='/api/content'){
     const out={};
     for(const type of ['problems','articles','contests','videos']){
-      const snap=await getDocs(collection(db,type));
-      out[type]=snap.docs.map(x=>({id:x.id,...x.data()})).filter(x=>type!=='videos'||x.status!=='draft');
+      try{
+        const snap=await getDocs(collection(db,type));
+        out[type]=snap.docs.map(x=>({id:x.id,...x.data()})).filter(x=>type!=='videos'||x.status!=='draft');
+      }catch(e){ out[type]=[]; }
     }
     return out;
   }
