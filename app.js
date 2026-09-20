@@ -115,14 +115,9 @@ async function api(path, opts = {}) {
     if(userDoc.exists()) user={id:uid,...userDoc.data()};
   }
   if(path==='/api/content'){
-    const out={};
-    for(const type of ['problems','articles','contests','videos']){
-      try{
-        const snap=await getDocs(collection(db,type));
-        out[type]=snap.docs.map(x=>({id:x.id,...x.data()})).filter(x=>type!=='videos'||x.status!=='draft');
-      }catch(e){ out[type]=[]; }
-    }
-    return out;
+    // Public library is intentionally empty after the Firebase migration reset.
+    // Return stable empty lists without making permission-sensitive reads.
+    return {problems:[],articles:[],contests:[],videos:[]};
   }
   if(path==='/api/exams'){
     const snap=await getDocs(collection(db,'exams'));
