@@ -20,3 +20,7 @@
  .exam-paper-title h2{font-size:38px}
  .question-text{font-size:18px}
 }
+/* Final exam timer-only header */
+.exam-top{display:none!important}
+.exam-clock-only{width:100%;display:flex;justify-content:center;align-items:center;background:transparent;border:0;box-shadow:none;padding:8px 0 18px;margin:0}
+.exam-clock-only .exam-clock{font-family:'Space Grotesk';font-variant-numeric:tabular-nums;font-size:58px;font-weight:800;letter-spacing:1px;line-height:1;background:transparent;border:0;box-shadow:none;padding:0}
