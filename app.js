@@ -92,6 +92,17 @@ async function authReady(){
   await fb();
   return __authReady;
 }
+function publicExam(exam){
+  const safe={...exam};
+  delete safe.registrations;
+  delete safe.submissions;
+  safe.questions=(Array.isArray(exam.questions)?exam.questions:[]).map(q=>{
+    const out={...q};
+    delete out.solution;
+    return out;
+  });
+  return safe;
+}
 async function api(path, opts = {}) {
   const {db,auth}=await fb();
   await authReady();
@@ -126,7 +137,13 @@ async function api(path, opts = {}) {
   if(path==='/api/exams/history'){
     if(!user) throw new Error('Authentication required');
     const snap=await getDocs(collection(db,'exams')),history=[];
-    snap.docs.forEach(x=>(x.data().submissions||[]).filter(s=>s.userId===uid).forEach(s=>history.push({examId:x.id,title:x.data().titleEn||x.data().title||'',titleEn:x.data().titleEn||x.data().title||'',titleAz:x.data().titleAz||'',submittedAt:s.submittedAt,answers:s.answers||{}})));
+    for(const x of snap.docs){
+      const sub=await getDoc(doc(db,'exams',x.id,'submissions',uid));
+      if(sub.exists()){
+        const s=sub.data();
+        history.push({examId:x.id,title:x.data().titleEn||x.data().title||'',titleEn:x.data().titleEn||x.data().title||'',titleAz:x.data().titleAz||'',submittedAt:s.submittedAt,answers:s.answers||{}});
+      }
+    }
     history.sort((a,b)=>new Date(b.submittedAt)-new Date(a.submittedAt)); return {history};
   }
   const em=path.match(/^\/api\/exams\/([^/]+)$/);
@@ -134,13 +151,14 @@ async function api(path, opts = {}) {
   const er=path.match(/^\/api\/exams\/([^/]+)\/(register|submit)$/);
   if(er&&method==='POST'){
     if(!user) throw new Error('Authentication required');
-    const ref=doc(db,'exams',er[1]),s=await getDoc(ref);if(!s.exists())throw new Error('Exam not found');
-    const e=s.data(), regs=e.registrations||[];
-    if(!regs.some(r=>r.userId===uid)) regs.push({userId:uid,registeredAt:new Date().toISOString()});
-    if(er[2]==='register'){await updateDoc(ref,{registrations:regs});return {ok:true};}
-    const subs=(e.submissions||[]).filter(x=>x.userId!==uid);
-    subs.push({userId:uid,userName:user.name,answers:body.answers||{},startedAt:body.startedAt||null,submittedAt:new Date().toISOString(),reason:body.reason||'manual'});
-    await updateDoc(ref,{registrations:regs,submissions:subs});return {ok:true};
+    const examRef=doc(db,'exams',er[1]),examSnap=await getDoc(examRef);
+    if(!examSnap.exists()) throw new Error('Exam not found');
+    if(er[2]==='register'){
+      await setDoc(doc(db,'exams',er[1],'registrations',uid),{userId:uid,registeredAt:new Date().toISOString()},{merge:true});
+      return {ok:true};
+    }
+    await setDoc(doc(db,'exams',er[1],'submissions',uid),{userId:uid,userName:user.name,answers:body.answers||{},startedAt:body.startedAt||null,submittedAt:new Date().toISOString(),reason:body.reason||'manual'});
+    return {ok:true};
   }
   const am=path.match(/^\/api\/admin\/(problems|articles|contests|videos|exams)(?:\/([^/]+))?$/);
   if(am){
@@ -148,7 +166,19 @@ async function api(path, opts = {}) {
     const type=am[1],id=am[2],ref=id?doc(db,type,id):null;
     if(method==='GET'){
       if(type==='users') return {users:[]};
-      const snap=await getDocs(collection(db,type)); return type==='exams'?{exams:snap.docs.map(x=>({id:x.id,...x.data()}))}:type==='videos'?{videos:snap.docs.map(x=>({id:x.id,...x.data()}))}:snap.docs.map(x=>({id:x.id,...x.data()}));
+      const snap=await getDocs(collection(db,type));
+      if(type==='exams'){
+        const exams=[];
+        for(const x of snap.docs){
+          const [regs,subs]=await Promise.all([
+            getDocs(collection(db,'exams',x.id,'registrations')),
+            getDocs(collection(db,'exams',x.id,'submissions'))
+          ]);
+          exams.push({id:x.id,...x.data(),registrationsCount:regs.size,submissionsCount:subs.size});
+        }
+        return {exams};
+      }
+      return type==='videos'?{videos:snap.docs.map(x=>({id:x.id,...x.data()}))}:snap.docs.map(x=>({id:x.id,...x.data()}));
     }
     if(method==='POST'){
       const item={...body,id:crypto.randomUUID(),createdAt:new Date().toISOString()};
