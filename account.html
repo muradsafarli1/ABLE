@@ -16,39 +16,146 @@ document.addEventListener('DOMContentLoaded', async () => {
   let history = [];
   try { history = (await api('/api/exams/history')).history || []; } catch {}
 
+  const completed = history.length;
+  const activity = Array.from({length: 28}, (_, i) => {
+    const day = new Date();
+    day.setDate(day.getDate() - (27 - i));
+    return { date: day, count: 0 };
+  });
+
+  const activityCells = activity.map(x => {
+    const label = x.date.toLocaleDateString(undefined, {month:'short', day:'numeric'});
+    return '<div class="activity-cell level-' + Math.min(x.count,4) + '" title="' + label + ': ' + x.count + ' problems"></div>';
+  }).join('');
+
+  const activityLabels = ['Fri','Sat','Sun','Mon','Tue','Wed','Thu'];
+
   shell('', 'Account', `
-    <section class="pagehero">
-      <div class="wrap">
-        <div class="eyebrow">ABLE Account</div>
-        <h1>Welcome, ${escapeHtml(u.name)}.</h1>
-        <p class="lead">Your account, exam registrations and completed exams are saved here.</p>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="wrap">
-        <div class="bigcard">
-          <div class="tag">PROFILE</div>
-          <h2>${escapeHtml(u.email)}</h2>
-          <p>Role: ${escapeHtml(u.role)}</p>
-          <p>Member since: ${new Date(u.createdAt).toLocaleDateString()}</p>
-          <button class="btn" onclick="logout()">Log out</button>
-          ${u.role==='admin' ? '<a class="btn primary" href="/admin.html">Admin Panel</a>' : ''}
+    <main class="account-page">
+      <section class="account-hero">
+        <div class="wrap">
+          <div class="eyebrow">ABLE ACCOUNT</div>
+          <h1>Welcome, ${escapeHtml(u.name)}.</h1>
+          <p class="lead">Track your olympiad progress, exams and saved problems in one place.</p>
         </div>
+      </section>
 
-        <div class="bigcard" style="margin-top:25px">
-          <div class="tag">EXAM HISTORY</div>
-          <h2>Completed exams</h2>
-          ${history.length ? history.map(h=>`
-            <div style="padding:18px 0;border-bottom:1px solid rgba(255,255,255,.1)">
-              <strong>${escapeHtml(h.title)}</strong>
-              <div class="small">Submitted ${h.submittedAt ? new Date(h.submittedAt).toLocaleString() : '—'}</div>
-              <div style="margin-top:10px"><a class="btn" href="/exam.html?id=${encodeURIComponent(h.examId)}">Review exam</a></div>
+      <section class="section">
+        <div class="wrap">
+          <div class="account-stats">
+            <div class="account-stat">
+              <div class="account-stat-value">0</div>
+              <div class="account-stat-label">Solved Problems</div>
             </div>
-          `).join('') : '<p class="small">You have not completed an exam yet.</p>'}
+            <div class="account-stat">
+              <div class="account-stat-value">${completed}</div>
+              <div class="account-stat-label">Taken Exams</div>
+            </div>
+            <div class="account-stat">
+              <div class="account-stat-value">0</div>
+              <div class="account-stat-label">Saved Problems</div>
+            </div>
+          </div>
+
+          <div class="account-grid">
+            <section class="account-card activity-card">
+              <div class="account-card-head">
+                <div>
+                  <div class="tag">ACTIVITY</div>
+                  <h2>Problem activity</h2>
+                </div>
+                <span class="small">Last 4 weeks</span>
+              </div>
+              <div class="activity-wrap">
+                <div class="activity-days">${activityLabels.map(x=>'<span>'+x+'</span>').join('')}</div>
+                <div class="activity-grid">${activityCells}</div>
+              </div>
+              <div class="activity-legend"><span>Less</span><i class="activity-cell level-0"></i><i class="activity-cell level-1"></i><i class="activity-cell level-2"></i><i class="activity-cell level-3"></i><i class="activity-cell level-4"></i><span>More</span></div>
+            </section>
+
+            <section class="account-card profile-card">
+              <div class="tag">PROFILE</div>
+              <div class="profile-avatar">${escapeHtml((u.name||'A').trim().charAt(0).toUpperCase())}</div>
+              <h2>${escapeHtml(u.name)}</h2>
+              <p class="small">${escapeHtml(u.email)}</p>
+              <div class="profile-meta">
+                <div><span>Role</span><strong>${escapeHtml(u.role||'user')}</strong></div>
+                <div><span>Member since</span><strong>${u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}</strong></div>
+              </div>
+              <div class="profile-actions">
+                ${u.role==='admin' ? '<a class="btn primary" href="/admin.html">Admin Panel</a>' : ''}
+                <button class="btn" onclick="logout()">Log out</button>
+              </div>
+            </section>
+          </div>
+
+          <section class="account-card account-section-card">
+            <div class="account-card-head">
+              <div><div class="tag">SECTIONS</div><h2>Your progress</h2></div>
+            </div>
+            <div class="topic-grid">
+              <div class="topic-card"><strong>Algebra</strong><span>0 solved</span></div>
+              <div class="topic-card"><strong>Number Theory</strong><span>0 solved</span></div>
+              <div class="topic-card"><strong>Combinatorics</strong><span>0 solved</span></div>
+              <div class="topic-card"><strong>Geometry</strong><span>0 solved</span></div>
+            </div>
+          </section>
+
+          <section class="account-card account-section-card">
+            <div class="account-card-head">
+              <div><div class="tag">EXAMS</div><h2>Taken Exams</h2></div>
+            </div>
+            ${history.length ? history.map(h=>`
+              <div class="exam-history-row">
+                <div><strong>${escapeHtml(h.titleEn||h.title||'Exam')}</strong><span class="small">Submitted ${h.submittedAt ? new Date(h.submittedAt).toLocaleString() : '—'}</span></div>
+                <a class="btn" href="/exam.html?id=${encodeURIComponent(h.examId)}">Review</a>
+              </div>
+            `).join('') : '<div class="empty account-empty">No completed exams yet.</div>'}
+          </section>
         </div>
-      </div>
-    </section>
+      </section>
+    </main>
+    <style>
+      .account-page{min-height:70vh}
+      .account-hero{padding:70px 0 42px;border-bottom:1px solid var(--line,#292d34);background:radial-gradient(circle at 80% 0,rgba(100,110,220,.11),transparent 35%)}
+      .account-hero h1{font-size:clamp(42px,6vw,72px);letter-spacing:-3px;margin:10px 0 14px}
+      .account-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:18px}
+      .account-stat,.account-card{border:1px solid var(--line,#292d34);background:var(--panel,#101216);border-radius:18px}
+      .account-stat{padding:25px 26px}
+      .account-stat-value{font-size:36px;font-weight:800;letter-spacing:-1px}
+      .account-stat-label{margin-top:5px;color:#858b96;font-size:13px}
+      .account-grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(280px,.8fr);gap:18px}
+      .account-card{padding:26px}
+      .account-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:15px;margin-bottom:24px}
+      .account-card h2{margin:7px 0 0;font-size:25px;letter-spacing:-.7px}
+      .activity-wrap{overflow-x:auto}
+      .activity-days{display:grid;grid-template-columns:repeat(7,minmax(32px,1fr));gap:7px;margin-bottom:8px;color:#747a84;font-size:11px}
+      .activity-days span{text-align:center}
+      .activity-grid{display:grid;grid-template-columns:repeat(7,minmax(32px,1fr));grid-auto-rows:32px;gap:7px}
+      .activity-cell{display:block;width:100%;height:100%;border-radius:7px;background:#1b1f25;border:1px solid rgba(255,255,255,.035)}
+      .activity-cell.level-1{background:#343a45}.activity-cell.level-2{background:#535b69}.activity-cell.level-3{background:#747d8c}.activity-cell.level-4{background:#aab3c2}
+      .activity-legend{display:flex;align-items:center;justify-content:flex-end;gap:5px;margin-top:13px;color:#747a84;font-size:11px}
+      .activity-legend .activity-cell{width:13px;height:13px;border:0}
+      .profile-card{text-align:center}
+      .profile-avatar{width:76px;height:76px;margin:3px auto 17px;border-radius:50%;display:grid;place-items:center;background:#20242b;border:1px solid #343943;font-size:28px;font-weight:800}
+      .profile-card h2{font-size:26px}.profile-card p{margin:6px 0 20px}
+      .profile-meta{border-top:1px solid var(--line,#292d34);border-bottom:1px solid var(--line,#292d34);padding:16px 0;margin:20px 0;display:grid;gap:13px}
+      .profile-meta div{display:flex;justify-content:space-between;gap:15px;text-align:left}.profile-meta span{color:#747a84}.profile-meta strong{font-size:13px}
+      .profile-actions{display:flex;justify-content:center;gap:9px;flex-wrap:wrap}
+      .account-section-card{margin-top:18px}
+      .topic-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+      .topic-card{padding:19px;border:1px solid var(--line,#292d34);border-radius:13px;background:rgba(255,255,255,.018)}
+      .topic-card strong{display:block;font-size:15px}.topic-card span{display:block;color:#747a84;font-size:12px;margin-top:7px}
+      .exam-history-row{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:17px 0;border-top:1px solid var(--line,#292d34)}
+      .exam-history-row strong{display:block}.exam-history-row .small{display:block;margin-top:5px}
+      .account-empty{padding:15px 0}
+      html[data-theme="light"] .account-stat,html[data-theme="light"] .account-card{background:#fff;border-color:#dedfe2}
+      html[data-theme="light"] .account-hero{background:radial-gradient(circle at 80% 0,rgba(110,120,220,.10),transparent 35%);border-color:#dedfdd}
+      html[data-theme="light"] .activity-cell{background:#eef0f2;border-color:#e1e3e5}.activity-cell.level-1{background:#d8dce1}.activity-cell.level-2{background:#bdc3ca}.activity-cell.level-3{background:#9da5ae}.activity-cell.level-4{background:#777f89}
+      html[data-theme="light"] .profile-avatar{background:#eef0f2;border-color:#d9dbde}
+      @media(max-width:800px){.account-stats,.topic-grid{grid-template-columns:1fr 1fr}.account-grid{grid-template-columns:1fr}}
+      @media(max-width:520px){.account-stats,.topic-grid{grid-template-columns:1fr}.account-card,.account-stat{padding:20px}.account-hero{padding:50px 0 32px}}
+    </style>
   `);
 });
 </script>
