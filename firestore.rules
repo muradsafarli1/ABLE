@@ -39,6 +39,18 @@ service cloud.firestore {
     match /exams/{id} {
       allow read: if signedIn();
       allow create, update, delete: if isAdmin();
+
+      match /registrations/{uid} {
+        allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
+        allow create, update: if signedIn() && request.auth.uid == uid;
+        allow delete: if isAdmin() || (signedIn() && request.auth.uid == uid);
+      }
+
+      match /submissions/{uid} {
+        allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
+        allow create, update: if signedIn() && request.auth.uid == uid;
+        allow delete: if isAdmin() || (signedIn() && request.auth.uid == uid);
+      }
     }
   }
 }
