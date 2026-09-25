@@ -126,9 +126,22 @@ async function api(path, opts = {}) {
     if(userDoc.exists()) user={id:uid,...userDoc.data()};
   }
   if(path==='/api/content'){
-    // Public library is intentionally empty after the Firebase migration reset.
-    // Return stable empty lists without making permission-sensitive reads.
-    return {problems:[],articles:[],contests:[],videos:[]};
+    // Public content is stored in Firestore and these collections are readable
+    // by everyone according to firestore.rules. The previous implementation
+    // returned empty arrays here, so items saved successfully in Admin could
+    // never appear on the public site.
+    const [problemsSnap,articlesSnap,contestsSnap,videosSnap]=await Promise.all([
+      getDocs(collection(db,'problems')),
+      getDocs(collection(db,'articles')),
+      getDocs(collection(db,'contests')),
+      getDocs(collection(db,'videos'))
+    ]);
+    return {
+      problems: problemsSnap.docs.map(x=>({id:x.id,...x.data()})),
+      articles: articlesSnap.docs.map(x=>({id:x.id,...x.data()})),
+      contests: contestsSnap.docs.map(x=>({id:x.id,...x.data()})),
+      videos: videosSnap.docs.map(x=>({id:x.id,...x.data()}))
+    };
   }
   if(path==='/api/exams'){
     const snap=await getDocs(collection(db,'exams'));
